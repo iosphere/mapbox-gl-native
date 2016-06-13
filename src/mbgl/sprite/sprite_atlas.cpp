@@ -16,9 +16,9 @@ using namespace mbgl;
 SpriteAtlas::SpriteAtlas(dimension width_, dimension height_, float pixelRatio_, SpriteStore& store_)
     : width(width_),
       height(height_),
-      pixelWidth(std::ceil(width * pixelRatio_)),
-      pixelHeight(std::ceil(height * pixelRatio_)),
-      pixelRatio(pixelRatio_),
+      pixelWidth(std::ceil(width * pixelRatio_ / 4)),
+      pixelHeight(std::ceil(height * pixelRatio_ / 4)),
+      pixelRatio(pixelRatio_ / 4),
       store(store_),
       bin(width_, height_),
       dirty(true) {
