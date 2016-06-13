@@ -22,14 +22,14 @@ Resource Resource::source(const std::string& url) {
 Resource Resource::spriteImage(const std::string& base, float pixelRatio) {
     return Resource {
         Resource::Kind::SpriteImage,
-        base + (pixelRatio > 1 ? "@2x" : "") + ".png"
+        base + (pixelRatio > 1 ? "@4x" : "@2x") + ".png"
     };
 }
 
 Resource Resource::spriteJSON(const std::string& base, float pixelRatio) {
     return Resource {
         Resource::Kind::SpriteJSON,
-        base + (pixelRatio > 1 ? "@2x" : "") + ".json"
+        base + (pixelRatio > 1 ? "@4x" : "@2x") + ".json"
     };
 }
 
