@@ -32,6 +32,10 @@ public:
     optional<Timestamp> modified;
     optional<Timestamp> expires;
     optional<std::string> etag;
+
+    bool isFresh() const {
+        return !expires || *expires > util::now();
+    }
 };
 
 class Response::Error {
@@ -49,7 +53,7 @@ public:
     std::string message;
 
 public:
-    Error(Reason, const std::string& = "");
+    Error(Reason, std::string = "");
 };
 
 std::ostream& operator<<(std::ostream&, Response::Error::Reason);

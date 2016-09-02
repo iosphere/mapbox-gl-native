@@ -23,7 +23,7 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
     : fullscreen(fullscreen_), benchmark(benchmark_) {
     glfwSetErrorCallback(glfwError);
 
-    std::srand(std::time(0));
+    std::srand(std::time(nullptr));
 
     if (!glfwInit()) {
         mbgl::Log::Error(mbgl::Event::OpenGL, "failed to initialize glfw");
@@ -55,7 +55,7 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
     glfwWindowHint(GLFW_STENCIL_BITS, 8);
     glfwWindowHint(GLFW_DEPTH_BITS, 16);
 
-    window = glfwCreateWindow(width, height, "Mapbox GL", monitor, NULL);
+    window = glfwCreateWindow(width, height, "Mapbox GL", monitor, nullptr);
     if (!window) {
         glfwTerminate();
         mbgl::Log::Error(mbgl::Event::OpenGL, "failed to initialize window");
@@ -97,12 +97,14 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
     printf("- Press `Z` to cycle through north orientations\n");
     printf("- Prezz `X` to cycle through the viewport modes\n");
     printf("- Press `A` to cycle through Mapbox offices in the world + dateline monument\n");
+    printf("- Press `B` to cycle through the color, stencil, and depth buffer\n");
     printf("\n");
     printf("- Press `1` through `6` to add increasing numbers of point annotations for testing\n");
     printf("- Press `7` through `0` to add increasing numbers of shape annotations for testing\n");
     printf("\n");
     printf("- Press `Q` to remove annotations\n");
     printf("- Press `P` to add a random custom runtime imagery annotation\n");
+    printf("- Press `L` to add a random line annotation\n");
     printf("- Press `W` to pop the last-added annotation off\n");
     printf("\n");
     printf("- `Control` + mouse drag to rotate\n");
@@ -154,6 +156,18 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
                 }
             }
             break;
+        case GLFW_KEY_B: {
+            auto debug = view->map->getDebug();
+            if (debug & mbgl::MapDebugOptions::StencilClip) {
+                debug &= ~mbgl::MapDebugOptions::StencilClip;
+                debug |= mbgl::MapDebugOptions::DepthBuffer;
+            } else if (debug & mbgl::MapDebugOptions::DepthBuffer) {
+                debug &= ~mbgl::MapDebugOptions::DepthBuffer;
+            } else {
+                debug |= mbgl::MapDebugOptions::StencilClip;
+            }
+            view->map->setDebug(debug);
+        } break;
         case GLFW_KEY_N:
             if (!mods)
                 view->map->resetNorth();
@@ -164,9 +178,12 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
         case GLFW_KEY_Q:
             view->clearAnnotations();
             break;
-        case GLFW_KEY_P: {
+        case GLFW_KEY_P:
             view->addRandomCustomPointAnnotations(1);
-        } break;
+            break;
+        case GLFW_KEY_L:
+            view->addRandomLineAnnotations(1);
+            break;
         case GLFW_KEY_A: {
             // XXX Fix precision loss in flyTo:
             // https://github.com/mapbox/mapbox-gl-native/issues/4298
@@ -205,6 +222,13 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
         case GLFW_KEY_0: view->addRandomShapeAnnotations(1000); break;
         }
     }
+}
+
+mbgl::Color GLFWView::makeRandomColor() const {
+    const float r = 1.0f * (float(std::rand()) / RAND_MAX);
+    const float g = 1.0f * (float(std::rand()) / RAND_MAX);
+    const float b = 1.0f * (float(std::rand()) / RAND_MAX);
+    return { r, g, b, 1.0f };
 }
 
 mbgl::Point<double> GLFWView::makeRandomPoint() const {
@@ -264,16 +288,26 @@ void GLFWView::addRandomCustomPointAnnotations(int count) {
 }
 
 void GLFWView::addRandomPointAnnotations(int count) {
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; ++i) {
         annotationIDs.push_back(map->addAnnotation(mbgl::SymbolAnnotation { makeRandomPoint(), "default_marker" }));
     }
 }
 
+void GLFWView::addRandomLineAnnotations(int count) {
+    for (int i = 0; i < count; ++i) {
+        mbgl::LineString<double> lineString;
+        for (int j = 0; j < 3; ++j) {
+            lineString.push_back(makeRandomPoint());
+        }
+        annotationIDs.push_back(map->addAnnotation(mbgl::LineAnnotation { lineString, 1.0f, 2.0f, { makeRandomColor() } }));
+    }
+}
+
 void GLFWView::addRandomShapeAnnotations(int count) {
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; ++i) {
         mbgl::Polygon<double> triangle;
         triangle.push_back({ makeRandomPoint(), makeRandomPoint(), makeRandomPoint() });
-        annotationIDs.push_back(map->addAnnotation(mbgl::FillAnnotation { triangle, .1 }));
+        annotationIDs.push_back(map->addAnnotation(mbgl::FillAnnotation { triangle, 0.5f, { makeRandomColor() }, { makeRandomColor() } }));
     }
 }
 

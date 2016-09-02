@@ -2,13 +2,14 @@
 
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/source.hpp>
-#include <mbgl/style/filter.hpp>
 
 #include <mbgl/util/rapidjson.hpp>
 #include <mbgl/util/font_stack.hpp>
+#include <mbgl/util/geo.hpp>
 
 #include <vector>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <forward_list>
@@ -16,24 +17,25 @@
 namespace mbgl {
 namespace style {
 
-std::unique_ptr<Tileset> parseTileJSON(const std::string& json, const std::string& sourceURL, SourceType, uint16_t tileSize);
-std::unique_ptr<Tileset> parseTileJSON(const JSValue&);
-
-std::unique_ptr<mapbox::geojsonvt::GeoJSONVT> parseGeoJSON(const JSValue&);
-
-Filter parseFilter(const JSValue&);
+using StyleParseResult = std::exception_ptr;
 
 class Parser {
 public:
     ~Parser();
 
-    void parse(const std::string&);
+    StyleParseResult parse(const std::string&);
 
     std::string spriteURL;
     std::string glyphURL;
 
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<Layer>> layers;
+
+    std::string name;
+    LatLng latLng;
+    double zoom = 0;
+    double bearing = 0;
+    double pitch = 0;
 
     // Statically evaluate layer properties to determine what font stacks are used.
     std::vector<FontStack> fontStacks() const;
@@ -42,7 +44,6 @@ private:
     void parseSources(const JSValue&);
     void parseLayers(const JSValue&);
     void parseLayer(const std::string& id, const JSValue&, std::unique_ptr<Layer>&);
-    void parseVisibility(Layer&, const JSValue& value);
 
     std::unordered_map<std::string, const Source*> sourcesMap;
     std::unordered_map<std::string, std::pair<const JSValue&, std::unique_ptr<Layer>>> layersMap;

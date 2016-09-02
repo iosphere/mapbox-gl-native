@@ -17,7 +17,8 @@ public:
      * strictly additive; e.g. when a source is loaded, both `onSourceLoaded`
      * and `onNeedsRepaint` will be called.
      */
-    virtual void onNeedsRepaint() {}
+    void onNeedsRepaint() override {}
+    virtual void onStyleError() {}
     virtual void onResourceError(std::exception_ptr) {}
 };
 

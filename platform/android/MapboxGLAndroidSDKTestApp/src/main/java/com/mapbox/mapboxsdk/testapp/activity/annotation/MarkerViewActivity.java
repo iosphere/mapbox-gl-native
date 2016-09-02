@@ -41,7 +41,7 @@ import java.util.Random;
 
 public class MarkerViewActivity extends AppCompatActivity {
 
-    private MapboxMap mMapboxMap;
+    private MapboxMap mapboxMap;
     private MapView mMapView;
 
     private MarkerView movingMarkerOne, movingMarkerTwo;
@@ -55,7 +55,8 @@ public class MarkerViewActivity extends AppCompatActivity {
             new LatLng(38.909698, -77.029642),
             new LatLng(38.907227, -77.036530),
             new LatLng(38.905607, -77.031916),
-            new LatLng(38.889441, -77.050134)
+            new LatLng(38.889441, -77.050134),
+            new LatLng(38.888000, -77.050000) //Slight overlap to show re-ordering on selection
     };
 
     @Override
@@ -78,7 +79,7 @@ public class MarkerViewActivity extends AppCompatActivity {
         mMapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull MapboxMap mapboxMap) {
-                mMapboxMap = mapboxMap;
+                MarkerViewActivity.this.mapboxMap = mapboxMap;
 
                 final MarkerViewManager markerViewManager = mapboxMap.getMarkerViewManager();
 
@@ -87,9 +88,10 @@ public class MarkerViewActivity extends AppCompatActivity {
 
                 // add default ViewMarker markers
                 for (int i = 0; i < LAT_LNGS.length; i++) {
-                    mMapboxMap.addMarker(new MarkerViewOptions()
+                    MarkerViewActivity.this.mapboxMap.addMarker(new MarkerViewOptions()
                             .position(LAT_LNGS[i])
                             .title(String.valueOf(i))
+                            .alpha(0.5f)
                             .icon(usFlag)
                     );
                 }
@@ -103,22 +105,22 @@ public class MarkerViewActivity extends AppCompatActivity {
                 options.flat(true);
                 mapboxMap.addMarker(options);
 
-                mMapboxMap.addMarker(new MarkerOptions()
+                MarkerViewActivity.this.mapboxMap.addMarker(new MarkerOptions()
                         .title("United States")
                         .position(new LatLng(38.902580, -77.050102))
                 );
 
-                mMapboxMap.addMarker(new TextMarkerViewOptions()
+                MarkerViewActivity.this.mapboxMap.addMarker(new TextMarkerViewOptions()
                         .text("A")
                         .position(new LatLng(38.889876, -77.008849))
                 );
 
-                mMapboxMap.addMarker(new TextMarkerViewOptions()
+                MarkerViewActivity.this.mapboxMap.addMarker(new TextMarkerViewOptions()
                         .text("B")
                         .position(new LatLng(38.907327, -77.041293))
                 );
 
-                mMapboxMap.addMarker(new TextMarkerViewOptions()
+                MarkerViewActivity.this.mapboxMap.addMarker(new TextMarkerViewOptions()
                         .text("C")
                         .position(new LatLng(38.897642, -77.041980))
                 );
@@ -141,7 +143,7 @@ public class MarkerViewActivity extends AppCompatActivity {
                 });
 
                 // add a OnMarkerView click listener
-                mMapboxMap.getMarkerViewManager().setOnMarkerViewClickListener(new MapboxMap.OnMarkerViewClickListener() {
+                MarkerViewActivity.this.mapboxMap.getMarkerViewManager().setOnMarkerViewClickListener(new MapboxMap.OnMarkerViewClickListener() {
                     @Override
                     public boolean onMarkerClick(@NonNull Marker marker, @NonNull View view, @NonNull MapboxMap.MarkerViewAdapter adapter) {
                         Toast.makeText(MarkerViewActivity.this, "Hello " + marker.getId(), Toast.LENGTH_SHORT).show();
@@ -149,7 +151,7 @@ public class MarkerViewActivity extends AppCompatActivity {
                     }
                 });
 
-                movingMarkerOne = mMapboxMap.addMarker(new MarkerViewOptions()
+                movingMarkerOne = MarkerViewActivity.this.mapboxMap.addMarker(new MarkerViewOptions()
                         .position(CarLocation.CAR_0_LNGS[0])
                         .icon(IconFactory.getInstance(mMapView.getContext())
                                 .fromResource(R.drawable.ic_chelsea))

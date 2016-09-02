@@ -26,7 +26,8 @@ targets.
  - Modern C++ compiler that supports `-std=c++14`
    - clang++ 3.5 or later _or_
    - g++-5 or later
- - Python 2.x (for build only)
+ - [CMake](https://cmake.org/) 3.1 or later (for build only)
+ - [cURL](https://curl.haxx.se) (for build only)
  - [Node.js](https://nodejs.org/) (for build only)
  - [`pkg-config`](https://wiki.freedesktop.org/www/Software/pkg-config/) (for build only)
 
@@ -37,9 +38,9 @@ dependencies:
 
  - [`libcurl`](http://curl.haxx.se/libcurl/) (depends on OpenSSL)
 
-### Additional Dependencies for OS X
+### Additional Dependencies for macOS
 
- - Apple Command Line Tools (available at [Apple Developer](https://developer.apple.com/downloads))
+ - Apple Command Line Tools (available at [Apple Developer](https://developer.apple.com/download/more/))
  - [Homebrew](http://brew.sh)
  - [Cask](http://caskroom.io/) (if building for Android)
  - [xcpretty](https://github.com/supermarin/xcpretty) (`gem install xcpretty`)
@@ -50,7 +51,7 @@ See the relevant SDK documentation for next steps:
 
 * [Mapbox Android SDK](platform/android/)
 * [Mapbox iOS SDK](platform/ios/)
-* [Mapbox OS X SDK](platform/osx/)
+* [Mapbox macOS SDK](platform/macos/)
 * [Mapbox Qt SDK](platform/qt/)
 * [Mapbox GL Native on Linux](platform/linux/)
 * [node-mapbox-gl-native](platform/node/)

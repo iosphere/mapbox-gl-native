@@ -2,7 +2,7 @@ This document aims to outline at a high level the various parts that make up map
 
 # Repository structure
 
-mapbox-gl-native uses a monolithic that houses both core C++ code and code that wraps the C++ core with SDKs for Android, iOS, OS X, Node.js, and Qt. A "monorepo" allows us to:
+mapbox-gl-native uses a monolithic that houses both core C++ code and code that wraps the C++ core with SDKs for Android, iOS, macOS, Node.js, and Qt. A "monorepo" allows us to:
 
  * Make changes to the core API and SDKs simultaneously, ensuring no platform falls behind.
  * Ensure that core changes do not inadvertently break SDK tests.
@@ -18,7 +18,7 @@ The mapbox-gl-native build system uses a variety of tools.
 
 ## Make
 
-GNU Make and a master `Makefile` serves as the coordinating tool for all other build system tools. Most of your interaction with the build system will be via `make` commands. We aim to have a consistent pattern for make targets across platforms: for a given platform, e.g. `ios`, `make ios` builds a reasonable set of end products (though perhaps not all permutations of build options, which can be prohibitively expensive), and `make test-ios` runs a complete test suite for the platform.
+GNU Make and a master `Makefile` serves as the coordinating tool for all other build system tools. Most of your interaction with the build system will be via `make` commands. We aim to have a consistent pattern for make targets across platforms: for a given platform, e.g. `ios`, `make ios` builds a reasonable set of end products (though perhaps not all permutations of build options, which can be prohibitively expensive), and `make ios-test` runs a complete test suite for the platform.
 
 ## Git submodules
 
@@ -42,7 +42,7 @@ We track mason dependencies for a given platform in the file `platform/<platform
 
 Outside of the core C++ static library, platform SDKs typically rely on platform-native build tooling to complete the job.
 
-* For iOS and OS X this means Xcode and the xcodebuild command line tool.
+* For iOS and macOS this means Xcode and the xcodebuild command line tool.
 * For Android, Gradle and Android Studio.
 * For Qt, `qmake`.
 

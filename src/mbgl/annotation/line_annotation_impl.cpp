@@ -7,23 +7,26 @@ namespace mbgl {
 
 using namespace style;
 
-LineAnnotationImpl::LineAnnotationImpl(const AnnotationID id_, const LineAnnotation& annotation_, const uint8_t maxZoom_)
+LineAnnotationImpl::LineAnnotationImpl(AnnotationID id_, LineAnnotation annotation_, uint8_t maxZoom_)
     : ShapeAnnotationImpl(id_, maxZoom_),
-      annotation(annotation_) {
+      annotation({ ShapeAnnotationGeometry::visit(annotation_.geometry, CloseShapeAnnotation{}), annotation_.opacity, annotation_.width, annotation_.color }) {
 }
 
 void LineAnnotationImpl::updateStyle(Style& style) const {
-    if (style.getLayer(layerID))
-        return;
+    Layer* layer = style.getLayer(layerID);
+    LineLayer* lineLayer = layer ? layer->as<LineLayer>() : nullptr;
 
-    std::unique_ptr<LineLayer> layer = std::make_unique<LineLayer>(layerID);
-    layer->setSource(AnnotationManager::SourceID, layerID);
-    layer->setLineJoin(LineJoinType::Round);
-    layer->setLineOpacity(annotation.opacity);
-    layer->setLineWidth(annotation.width);
-    layer->setLineColor(annotation.color);
+    if (!lineLayer) {
+        lineLayer = style.addLayer(
+            std::make_unique<LineLayer>(layerID, AnnotationManager::SourceID),
+            AnnotationManager::PointLayerID)->as<LineLayer>();
+        lineLayer->setSourceLayer(layerID);
+    }
 
-    style.addLayer(std::move(layer), AnnotationManager::PointLayerID);
+    lineLayer->setLineJoin(LineJoinType::Round);
+    lineLayer->setLineOpacity(annotation.opacity);
+    lineLayer->setLineWidth(annotation.width);
+    lineLayer->setLineColor(annotation.color);
 }
 
 const ShapeAnnotationGeometry& LineAnnotationImpl::geometry() const {

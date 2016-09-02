@@ -26,8 +26,9 @@ struct CameraOptions;
 struct AnimationOptions;
 
 namespace style {
+class Source;
 class Layer;
-}
+} // namespace style
 
 class Map : private util::noncopyable {
 public:
@@ -147,14 +148,27 @@ public:
     void updateAnnotation(AnnotationID, const Annotation&);
     void removeAnnotation(AnnotationID);
 
-    AnnotationIDs getPointAnnotationsInBounds(const LatLngBounds&);
+    // Sources
+    style::Source* getSource(const std::string& sourceID);
+    void addSource(std::unique_ptr<style::Source>);
+    void removeSource(const std::string& sourceID);
 
+    // Layers
+    style::Layer* getLayer(const std::string& layerID);
     void addLayer(std::unique_ptr<style::Layer>, const optional<std::string>& beforeLayerID = {});
     void removeLayer(const std::string& layerID);
+
+    // Defaults
+    std::string getStyleName() const;
+    LatLng getDefaultLatLng() const;
+    double getDefaultZoom() const;
+    double getDefaultBearing() const;
+    double getDefaultPitch() const;
 
     // Feature queries
     std::vector<Feature> queryRenderedFeatures(const ScreenCoordinate&, const optional<std::vector<std::string>>& layerIDs = {});
     std::vector<Feature> queryRenderedFeatures(const ScreenBox&,        const optional<std::vector<std::string>>& layerIDs = {});
+    AnnotationIDs queryPointAnnotations(const ScreenBox&);
 
     // Memory
     void setSourceTileCacheSize(size_t);

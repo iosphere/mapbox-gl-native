@@ -3,6 +3,7 @@ import QtPositioning 5.0
 import QtQuick 2.0
 import QtQuick.Controls 1.0
 import QtQuick.Layouts 1.0
+import QtQuick.Dialogs 1.0
 
 import QQuickMapboxGL 1.0
 
@@ -11,6 +12,39 @@ ApplicationWindow {
     width: 1024
     height: 768
     visible: true
+
+    ColorDialog {
+        id: landColorDialog
+        title: "Land color"
+        onCurrentColorChanged: { mapFront.color = currentColor }
+    }
+
+    ColorDialog {
+        id: waterColorDialog
+        title: "Water color"
+        onCurrentColorChanged: { waterColor.value = currentColor }
+    }
+
+    MapboxLayoutStyleProperty {
+        parent: styleStreets
+        layer: "road-label-large"
+        property: "visibility"
+        value: roadLabel.checked ? "visible" : "none"
+    }
+
+    MapboxLayoutStyleProperty {
+        parent: styleStreets
+        layer: "road-label-medium"
+        property: "visibility"
+        value: roadLabel.checked ? "visible" : "none"
+    }
+
+    MapboxLayoutStyleProperty {
+        parent: styleStreets
+        layer: "road-label-small"
+        property: "visibility"
+        value: roadLabel.checked ? "visible" : "none"
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -35,13 +69,16 @@ ApplicationWindow {
             front: Rectangle {
                 anchors.fill: parent
 
-                QQuickMapboxGL {
-                    id: mapStreets
+                MapboxMap {
+                    id: mapFront
 
                     anchors.fill: parent
                     visible: false
 
-                    style: "mapbox://styles/mapbox/streets-v9"
+                    style: MapboxStyle {
+                        id: styleStreets
+                        url: "mapbox://styles/mapbox/streets-v9"
+                    }
 
                     center: QtPositioning.coordinate(60.170448, 24.942046) // Helsinki
                     zoomLevel: 14
@@ -51,8 +88,14 @@ ApplicationWindow {
                     bearing: bearingSlider.value
                     pitch: pitchSlider.value
 
-                    color: "red"
+                    color: landColorDialog.color
                     copyrightsVisible: true
+
+                    MapboxPaintStyleProperty {
+                        id: waterColor
+                        layer: "water"
+                        property: "fill-color"
+                    }
 
                     Image {
                         id: logo
@@ -84,7 +127,7 @@ ApplicationWindow {
                 OpacityMask {
                     anchors.fill: maskStreets
 
-                    source: mapStreets
+                    source: mapFront
                     maskSource: maskStreets
                 }
 
@@ -94,7 +137,7 @@ ApplicationWindow {
                     property var lastX: 0
                     property var lastY: 0
 
-                    onWheel: mapStreets.zoomLevel += 0.2 * wheel.angleDelta.y / 120
+                    onWheel: mapFront.zoomLevel += 0.2 * wheel.angleDelta.y / 120
 
                     onPressed: {
                         lastX = mouse.x
@@ -102,7 +145,7 @@ ApplicationWindow {
                     }
 
                     onPositionChanged: {
-                        mapStreets.pan(mouse.x - lastX, mouse.y - lastY)
+                        mapFront.pan(mouse.x - lastX, mouse.y - lastY)
 
                         lastX = mouse.x
                         lastY = mouse.y
@@ -113,21 +156,24 @@ ApplicationWindow {
             back: Rectangle {
                 anchors.fill: parent
 
-                QQuickMapboxGL {
-                    id: mapSatellite
+                MapboxMap {
+                    id: mapBack
 
                     anchors.fill: parent
                     visible: false
 
-                    style: "mapbox://styles/mapbox/satellite-streets-v9"
+                    style: MapboxStyle {
+                        id: styleSatellite
+                        url: "mapbox://styles/mapbox/satellite-streets-v9"
+                    }
 
-                    center: mapStreets.center
-                    zoomLevel: mapStreets.zoomLevel
-                    minimumZoomLevel: mapStreets.minimumZoomLevel
-                    maximumZoomLevel: mapStreets.maximumZoomLevel
+                    center: mapFront.center
+                    zoomLevel: mapFront.zoomLevel
+                    minimumZoomLevel: mapFront.minimumZoomLevel
+                    maximumZoomLevel: mapFront.maximumZoomLevel
 
-                    bearing: mapStreets.bearing
-                    pitch: mapStreets.pitch
+                    bearing: mapFront.bearing
+                    pitch: mapFront.pitch
 
                     Image {
                         anchors.right: parent.right
@@ -157,7 +203,7 @@ ApplicationWindow {
                 OpacityMask {
                     anchors.fill: maskSatellite
 
-                    source: mapSatellite
+                    source: mapBack
                     maskSource: maskSatellite
                 }
 
@@ -167,7 +213,7 @@ ApplicationWindow {
                     property var lastX: 0
                     property var lastY: 0
 
-                    onWheel: mapStreets.zoomLevel += 0.2 * wheel.angleDelta.y / 120
+                    onWheel: mapFront.zoomLevel += 0.2 * wheel.angleDelta.y / 120
 
                     onPressed: {
                         lastX = mouse.x
@@ -175,7 +221,7 @@ ApplicationWindow {
                     }
 
                     onPositionChanged: {
-                        mapStreets.pan(mouse.x - lastX, mouse.y - lastY)
+                        mapFront.pan(mouse.x - lastX, mouse.y - lastY)
 
                         lastX = mouse.x
                         lastY = mouse.y
@@ -184,37 +230,80 @@ ApplicationWindow {
             }
         }
 
-        Slider {
-            id: bearingSlider
+        ColumnLayout {
+            RowLayout {
+                anchors.margins: 50
+                spacing: anchors.margins
 
-            Layout.fillHeight: true
-            orientation: Qt.Vertical
+                Slider {
+                    id: bearingSlider
 
-            value: 0
-            minimumValue: 0
-            maximumValue: 180
-        }
+                    Layout.fillHeight: true
+                    orientation: Qt.Vertical
 
-        Slider {
-            id: pitchSlider
+                    value: 0
+                    minimumValue: 0
+                    maximumValue: 180
+                }
 
-            Layout.fillHeight: true
-            orientation: Qt.Vertical
+                Slider {
+                    id: pitchSlider
 
-            value: 0
-            minimumValue: 0
-            maximumValue: 60
-        }
+                    Layout.fillHeight: true
+                    orientation: Qt.Vertical
 
-        Slider {
-            id: flipSlider
+                    value: 0
+                    minimumValue: 0
+                    maximumValue: 60
+                }
 
-            Layout.fillHeight: true
-            orientation: Qt.Vertical
+                Slider {
+                    id: flipSlider
 
-            value: 0
-            minimumValue: 0
-            maximumValue: 180
+                    Layout.fillHeight: true
+                    orientation: Qt.Vertical
+
+                    value: 0
+                    minimumValue: 0
+                    maximumValue: 180
+                }
+            }
+
+            Button {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                text: "Select land color"
+                onClicked: landColorDialog.open()
+            }
+
+            Button {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                text: "Select water color"
+                onClicked: waterColorDialog.open()
+            }
+
+            Button {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                text: "Light style"
+                onClicked: { styleStreets.url = "mapbox://styles/mapbox/light-v9" }
+            }
+
+            Button {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                text: "Dark style"
+                onClicked: { styleStreets.url = "mapbox://styles/mapbox/dark-v9" }
+            }
+
+            CheckBox {
+                id: roadLabel
+                anchors.left: parent.left
+                anchors.right: parent.right
+                text: "Toggle road label"
+                checked: true
+            }
         }
     }
 }

@@ -18,14 +18,17 @@ public:
 
     // Paint properties
 
+    static PropertyValue<Color> getDefaultBackgroundColor();
     PropertyValue<Color> getBackgroundColor() const;
-    void setBackgroundColor(PropertyValue<Color>);
+    void setBackgroundColor(PropertyValue<Color>, const optional<std::string>& klass = {});
 
+    static PropertyValue<std::string> getDefaultBackgroundPattern();
     PropertyValue<std::string> getBackgroundPattern() const;
-    void setBackgroundPattern(PropertyValue<std::string>);
+    void setBackgroundPattern(PropertyValue<std::string>, const optional<std::string>& klass = {});
 
+    static PropertyValue<float> getDefaultBackgroundOpacity();
     PropertyValue<float> getBackgroundOpacity() const;
-    void setBackgroundOpacity(PropertyValue<float>);
+    void setBackgroundOpacity(PropertyValue<float>, const optional<std::string>& klass = {});
 
     // Private implementation
 

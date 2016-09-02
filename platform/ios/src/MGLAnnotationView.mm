@@ -1,15 +1,20 @@
 #import "MGLAnnotationView.h"
 #import "MGLAnnotationView_Private.h"
-#import "MGLMapView_Internal.h"
+#import "MGLMapView_Private.h"
+#import "MGLAnnotation.h"
 
 #import "NSBundle+MGLAdditions.h"
 
 #include <mbgl/util/constants.hpp>
 
-@interface MGLAnnotationView ()
+@interface MGLAnnotationView () <UIGestureRecognizerDelegate>
 
-@property (nonatomic) id<MGLAnnotation> annotation;
 @property (nonatomic, readwrite, nullable) NSString *reuseIdentifier;
+@property (nonatomic, readwrite, nullable) id <MGLAnnotation> annotation;
+@property (nonatomic, readwrite) CATransform3D lastAppliedScaleTransform;
+@property (nonatomic, weak) UIPanGestureRecognizer *panGestureRecognizer;
+@property (nonatomic, weak) UILongPressGestureRecognizer *longPressRecognizer;
+@property (nonatomic, weak) MGLMapView *mapView;
 
 @end
 
@@ -20,8 +25,10 @@
     self = [self initWithFrame:CGRectZero];
     if (self)
     {
+        _lastAppliedScaleTransform = CATransform3DIdentity;
         _reuseIdentifier = [reuseIdentifier copy];
         _scalesWithViewingDistance = YES;
+        _enabled = YES;
     }
     return self;
 }
@@ -37,37 +44,48 @@
     self.center = self.center;
 }
 
-- (void)setCenter:(CGPoint)center
+- (void)setSelected:(BOOL)selected
 {
-    [self setCenter:center pitch:0];
+    [self setSelected:selected animated:NO];
 }
 
-- (void)setCenter:(CGPoint)center pitch:(CGFloat)pitch
+- (void)setSelected:(BOOL)selected animated:(BOOL)animated
+{
+    [self willChangeValueForKey:@"selected"];
+    _selected = selected;
+    [self didChangeValueForKey:@"selected"];
+}
+
+- (CGPoint)center
+{
+    CGPoint center = super.center;
+    center.x -= _centerOffset.dx;
+    center.y -= _centerOffset.dy;
+    return center;
+}
+
+- (void)setCenter:(CGPoint)center
 {
     center.x += _centerOffset.dx;
     center.y += _centerOffset.dy;
     
-    [super setCenter:center];
-    
-    if (self.flat)
+    super.center = center;
+    [self updateScaleTransformForViewingDistance];
+}
+
+- (void)setScalesWithViewingDistance:(BOOL)scalesWithViewingDistance
+{
+    if (_scalesWithViewingDistance != scalesWithViewingDistance)
     {
-        [self updatePitch:pitch];
-    }
-  
-    if (self.scalesWithViewingDistance)
-    {
-        [self updateScaleForPitch:pitch];
+        _scalesWithViewingDistance = scalesWithViewingDistance;
+        [self updateScaleTransformForViewingDistance];
     }
 }
 
-- (void)updatePitch:(CGFloat)pitch
+- (void)updateScaleTransformForViewingDistance
 {
-    CATransform3D t = CATransform3DRotate(CATransform3DIdentity, MGLRadiansFromDegrees(pitch), 1.0, 0, 0);
-    self.layer.transform = t;
-}
+    if (self.scalesWithViewingDistance == NO || self.dragState == MGLAnnotationViewDragStateDragging) return;
 
-- (void)updateScaleForPitch:(CGFloat)pitch
-{
     CGFloat superviewHeight = CGRectGetHeight(self.superview.frame);
     if (superviewHeight > 0.0) {
         // Find the maximum amount of scale reduction to apply as the view's center moves from the top
@@ -82,27 +100,150 @@
         // as the map view will allow). The map view's maximum pitch is defined in `mbgl::util::PITCH_MAX`.
         // Since it is possible for the map view to report a pitch less than 0 due to the nature of
         // how the gesture information is captured, the value is guarded with MAX.
-        CGFloat pitchIntensity = MAX(pitch, 0) / MGLDegreesFromRadians(mbgl::util::PITCH_MAX);
+        CGFloat pitchIntensity = MAX(self.mapView.camera.pitch, 0) / MGLDegreesFromRadians(mbgl::util::PITCH_MAX);
        
         // The pitch adjusted scale is the inverse proportion of the maximum possible scale reduction
         // multiplied by the pitch intensity. For example, if the maximum scale reduction is 75% and the
         // map view is 50% pitched then the annotation view should be reduced by 37.5% (.75 * .5). The
         // reduction is then normalized for a scale of 1.0.
         CGFloat pitchAdjustedScale = 1.0 - maxScaleReduction * pitchIntensity;
-        
-        CATransform3D transform = self.flat ? self.layer.transform : CATransform3DIdentity;
-        self.layer.transform = CATransform3DScale(transform, pitchAdjustedScale, pitchAdjustedScale, 1);
+
+        // We keep track of each viewing distance scale transform that we apply. Each iteration,
+        // we can account for it so that we don't get cumulative scaling every time we move.
+        // We also avoid clobbering any existing transform passed in by the client, too.
+        CATransform3D undoOfLastScaleTransform = CATransform3DInvert(_lastAppliedScaleTransform);
+        CATransform3D newScaleTransform = CATransform3DMakeScale(pitchAdjustedScale, pitchAdjustedScale, 1);
+        CATransform3D effectiveTransform = CATransform3DConcat(undoOfLastScaleTransform, newScaleTransform);
+        self.layer.transform = CATransform3DConcat(self.layer.transform, effectiveTransform);
+        _lastAppliedScaleTransform = newScaleTransform;
     }
 }
 
-- (id<CAAction>)actionForLayer:(CALayer *)layer forKey:(NSString *)event
+#pragma mark - Draggable
+
+- (void)setDraggable:(BOOL)draggable
 {
-    // Allow mbgl to drive animation of this view’s bounds.
-    if ([event isEqualToString:@"bounds"])
+    [self willChangeValueForKey:@"draggable"];
+    _draggable = draggable;
+    [self didChangeValueForKey:@"draggable"];
+    
+    if (draggable)
     {
-        return [NSNull null];
+        [self enableDrag];
     }
-    return [super actionForLayer:layer forKey:event];
+    else
+    {
+        [self disableDrag];
+    }
+}
+
+- (void)enableDrag
+{
+    if (!_longPressRecognizer)
+    {
+        UILongPressGestureRecognizer *recognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
+        recognizer.delegate = self;
+        [self addGestureRecognizer:recognizer];
+        _longPressRecognizer = recognizer;
+    }
+    
+    if (!_panGestureRecognizer)
+    {
+        UIPanGestureRecognizer *recognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
+        recognizer.delegate = self;
+        [self addGestureRecognizer:recognizer];
+        _panGestureRecognizer = recognizer;
+    }
+}
+
+- (void)disableDrag
+{
+    [self removeGestureRecognizer:_longPressRecognizer];
+    [self removeGestureRecognizer:_panGestureRecognizer];
+}
+
+- (void)handleLongPress:(UILongPressGestureRecognizer *)sender
+{
+    switch (sender.state) {
+        case UIGestureRecognizerStateBegan:
+            self.dragState = MGLAnnotationViewDragStateStarting;
+            break;
+        case UIGestureRecognizerStateChanged:
+            self.dragState = MGLAnnotationViewDragStateDragging;
+            break;
+        case UIGestureRecognizerStateCancelled:
+            self.dragState = MGLAnnotationViewDragStateCanceling;
+            break;
+        case UIGestureRecognizerStateEnded:
+            self.dragState = MGLAnnotationViewDragStateEnding;
+            break;
+        case UIGestureRecognizerStateFailed:
+            self.dragState = MGLAnnotationViewDragStateNone;
+            break;
+        case UIGestureRecognizerStatePossible:
+            break;
+    }
+}
+
+- (void)handlePan:(UIPanGestureRecognizer *)sender
+{
+    self.center = [sender locationInView:sender.view.superview];
+
+    if (sender.state == UIGestureRecognizerStateEnded) {
+        self.dragState = MGLAnnotationViewDragStateNone;
+    }
+}
+
+- (void)setDragState:(MGLAnnotationViewDragState)dragState
+{
+    [self setDragState:dragState animated:YES];
+}
+
+- (void)setDragState:(MGLAnnotationViewDragState)dragState animated:(BOOL)animated
+{
+    [self willChangeValueForKey:@"dragState"];
+    _dragState = dragState;
+    [self didChangeValueForKey:@"dragState"];
+    
+    if (dragState == MGLAnnotationViewDragStateStarting)
+    {
+        [self.mapView.calloutViewForSelectedAnnotation dismissCalloutAnimated:animated];
+        [self.superview bringSubviewToFront:self];
+    }
+    else if (dragState == MGLAnnotationViewDragStateCanceling)
+    {
+        self.panGestureRecognizer.enabled = NO;
+        self.longPressRecognizer.enabled = NO;
+        self.center = [self.mapView convertCoordinate:self.annotation.coordinate toPointToView:self.mapView];
+        self.panGestureRecognizer.enabled = YES;
+        self.longPressRecognizer.enabled = YES;
+        self.dragState = MGLAnnotationViewDragStateNone;
+    }
+    else if (dragState == MGLAnnotationViewDragStateEnding)
+    {
+        if ([self.annotation respondsToSelector:@selector(setCoordinate:)])
+        {
+            CLLocationCoordinate2D coordinate = [self.mapView convertPoint:self.center toCoordinateFromView:self.mapView];
+            [(NSObject *)self.annotation setValue:[NSValue valueWithMGLCoordinate:coordinate] forKey:@"coordinate"];
+        }
+    }
+}
+
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer
+{
+    BOOL isDragging = self.dragState == MGLAnnotationViewDragStateDragging;
+    
+    if (gestureRecognizer == _panGestureRecognizer && !(isDragging))
+    {
+        return NO;
+    }
+
+    return YES;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
+{
+    return otherGestureRecognizer == _longPressRecognizer || otherGestureRecognizer == _panGestureRecognizer;
 }
 
 #pragma mark UIAccessibility methods

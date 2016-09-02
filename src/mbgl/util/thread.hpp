@@ -6,7 +6,6 @@
 #include <utility>
 #include <functional>
 
-#include <mbgl/util/atomic.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/thread_context.hpp>
 #include <mbgl/platform/platform.hpp>
@@ -45,21 +44,13 @@ public:
     }
 
     // Invoke object->fn(args...) in the runloop thread, and wait for the result.
-    template <class R, typename Fn, class... Args>
-    R invokeSync(Fn fn, Args&&... args) {
+    template <typename Fn, class... Args>
+    auto invokeSync(Fn fn, Args&&... args) {
+        using R = std::result_of_t<Fn(Object, Args&&...)>;
         std::packaged_task<R ()> task(std::bind(fn, object, args...));
         std::future<R> future = task.get_future();
         loop->invoke(std::move(task));
         return future.get();
-    }
-
-    // Invoke object->fn(args...) in the runloop thread, and wait for it to complete.
-    template <typename Fn, class... Args>
-    void invokeSync(Fn fn, Args&&... args) {
-        std::packaged_task<void ()> task(std::bind(fn, object, args...));
-        std::future<void> future = task.get_future();
-        loop->invoke(std::move(task));
-        future.get();
     }
 
 private:
@@ -95,13 +86,7 @@ Thread<Object>::Thread(const ThreadContext& context, Args&&... args) {
     std::tuple<Args...> params = std::forward_as_tuple(::std::forward<Args>(args)...);
 
     thread = std::thread([&] {
-#if defined(__APPLE__)
-        pthread_setname_np(context.name.c_str());
-#elif defined(__GLIBC__) && defined(__GLIBC_PREREQ)
-#if __GLIBC_PREREQ(2, 12)
-        pthread_setname_np(pthread_self(), context.name.c_str());
-#endif
-#endif
+        platform::setCurrentThreadName(context.name);
 
         if (context.priority == ThreadPriority::Low) {
             platform::makeThreadLowPriority();

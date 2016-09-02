@@ -226,6 +226,8 @@ TEST(OfflineDownload, Activate) {
             EXPECT_EQ(status.requiredResourceCount, computedStatus.requiredResourceCount);
             EXPECT_EQ(status.completedResourceCount, computedStatus.completedResourceCount);
             EXPECT_EQ(status.completedResourceSize, computedStatus.completedResourceSize);
+            EXPECT_EQ(status.completedTileCount, computedStatus.completedTileCount);
+            EXPECT_EQ(status.completedTileSize, computedStatus.completedTileSize);
             EXPECT_TRUE(status.requiredResourceCountIsPrecise);
 
             test.loop.stop();
@@ -474,7 +476,7 @@ TEST(OfflineDownload, WithPreviouslyExistingTile) {
     };
 
     test.db.put(
-        Resource::tile("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", 1, 0, 0, 0),
+        Resource::tile("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", 1, 0, 0, 0, Tileset::Scheme::XYZ),
         test.response("0-0-0.vector.pbf"));
 
     auto observer = std::make_unique<MockObserver>();
@@ -508,7 +510,7 @@ TEST(OfflineDownload, ReactivatePreviouslyCompletedDownload) {
     };
 
     test.db.put(
-        Resource::tile("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", 1, 0, 0, 0),
+        Resource::tile("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", 1, 0, 0, 0, Tileset::Scheme::XYZ),
         test.response("0-0-0.vector.pbf"));
 
     auto observer = std::make_unique<MockObserver>();

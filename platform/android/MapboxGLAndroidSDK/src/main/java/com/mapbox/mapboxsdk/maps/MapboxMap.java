@@ -2,6 +2,8 @@ package com.mapbox.mapboxsdk.maps;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.PointF;
+import android.graphics.RectF;
 import android.location.Location;
 import android.os.SystemClock;
 import android.support.annotation.FloatRange;
@@ -20,6 +22,7 @@ import com.mapbox.mapboxsdk.annotations.Annotation;
 import com.mapbox.mapboxsdk.annotations.BaseMarkerOptions;
 import com.mapbox.mapboxsdk.annotations.BaseMarkerViewOptions;
 import com.mapbox.mapboxsdk.annotations.Icon;
+import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.annotations.InfoWindow;
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
@@ -37,9 +40,12 @@ import com.mapbox.mapboxsdk.constants.MyBearingTracking;
 import com.mapbox.mapboxsdk.constants.MyLocationTracking;
 import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
-import com.mapbox.mapboxsdk.layers.CustomLayer;
-import com.mapbox.mapboxsdk.location.LocationListener;
 import com.mapbox.mapboxsdk.maps.widgets.MyLocationViewSettings;
+import com.mapbox.mapboxsdk.style.layers.Layer;
+import com.mapbox.mapboxsdk.style.layers.NoSuchLayerException;
+import com.mapbox.mapboxsdk.style.sources.NoSuchSourceException;
+import com.mapbox.mapboxsdk.style.sources.Source;
+import com.mapbox.services.commons.geojson.Feature;
 
 import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
@@ -52,10 +58,11 @@ import java.util.concurrent.TimeUnit;
  * you must obtain one from the getMapAsync() method on a MapFragment or MapView that you have
  * added to your application.
  * <p>
- * Note: Similar to a View object, a GoogleMap should only be read and modified from the main thread.
+ * Note: Similar to a View object, a MapboxMap should only be read and modified from the main thread.
  * </p>
  */
 public class MapboxMap {
+    private static final String TAG = MapboxMap.class.getSimpleName();
 
     private MapView mMapView;
     private UiSettings mUiSettings;
@@ -101,6 +108,58 @@ public class MapboxMap {
         mSelectedMarkers = new ArrayList<>();
         mInfoWindows = new ArrayList<>();
         mMarkerViewManager = new MarkerViewManager(this, mapView);
+    }
+
+    // Style
+
+    @Nullable
+    @UiThread
+    public Layer getLayer(@NonNull String layerId) {
+        return getMapView().getNativeMapView().getLayer(layerId);
+    }
+
+    /**
+     * Tries to cast the Layer to T, returns null if it's another type.
+     *
+     * @param layerId the layer id used to look up a layer
+     * @param <T>     the generic attribute of a Layer
+     * @return the casted Layer, null if another type
+     */
+    @Nullable
+    @UiThread
+    public <T extends Layer> T getLayerAs(@NonNull String layerId) {
+        try {
+            //noinspection unchecked
+            return (T) getMapView().getNativeMapView().getLayer(layerId);
+        } catch (ClassCastException e) {
+            Log.e(TAG, String.format("Layer: %s is a different type: %s", layerId, e.getMessage()));
+            return null;
+        }
+    }
+
+    @UiThread
+    public void addLayer(@NonNull Layer layer) {
+        addLayer(layer, null);
+    }
+
+    @UiThread
+    public void addLayer(@NonNull Layer layer, String before) {
+        getMapView().getNativeMapView().addLayer(layer, before);
+    }
+
+    @UiThread
+    public void removeLayer(@NonNull String layerId) throws NoSuchLayerException {
+        getMapView().getNativeMapView().removeLayer(layerId);
+    }
+
+    @UiThread
+    public void addSource(@NonNull Source source) {
+        getMapView().getNativeMapView().addSource(source);
+    }
+
+    @UiThread
+    public void removeSource(@NonNull String sourceId) throws NoSuchSourceException {
+        getMapView().getNativeMapView().removeSource(sourceId);
     }
 
     //
@@ -182,7 +241,7 @@ public class MapboxMap {
     /**
      * Gets the user interface settings for the map.
      *
-     * @return
+     * @return the UiSettings associated with this map
      */
     public UiSettings getUiSettings() {
         return mUiSettings;
@@ -195,7 +254,7 @@ public class MapboxMap {
     /**
      * Gets the tracking interface settings for the map.
      *
-     * @return
+     * @return the TrackingSettings asssociated with this map
      */
     public TrackingSettings getTrackingSettings() {
         return mTrackingSettings;
@@ -207,6 +266,8 @@ public class MapboxMap {
 
     /**
      * Gets the settings of the user location for the map.
+     *
+     * @return the MyLocationViewSettings associated with this map
      */
     public MyLocationViewSettings getMyLocationViewSettings() {
         if (myLocationViewSettings == null) {
@@ -221,6 +282,8 @@ public class MapboxMap {
 
     /**
      * Get the Projection object that you can use to convert between screen coordinates and latitude/longitude coordinates.
+     *
+     * @return the Projection associated with this map
      */
     public Projection getProjection() {
         return mProjection;
@@ -248,7 +311,7 @@ public class MapboxMap {
      * The move is instantaneous, and a subsequent getCameraPosition() will reflect the new position.
      * See CameraUpdateFactory for a set of updates.
      *
-     * @param cameraPosition
+     * @param cameraPosition the camera position to set
      */
     public void setCameraPosition(@NonNull CameraPosition cameraPosition) {
         moveCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
@@ -271,7 +334,8 @@ public class MapboxMap {
      * The move is instantaneous, and a subsequent getCameraPosition() will reflect the new position.
      * See CameraUpdateFactory for a set of updates.
      *
-     * @param update The change that should be applied to the camera.
+     * @param update   The change that should be applied to the camera
+     * @param callback the callback to be invoked when an animation finishes or is canceled
      */
     @UiThread
     public final void moveCamera(CameraUpdate update, MapboxMap.CancelableCallback callback) {
@@ -705,8 +769,24 @@ public class MapboxMap {
         long id = mMapView.addMarker(marker);
         marker.setId(id);
         mAnnotations.put(id, marker);
-        mMarkerViewManager.invalidateViewMarkersInBounds();
+        mMarkerViewManager.invalidateViewMarkersInVisibleRegion();
         return marker;
+    }
+
+    @UiThread
+    @NonNull
+    public List<MarkerView> addMarkerViews(@NonNull List<? extends BaseMarkerViewOptions> markerViewOptions) {
+        List<MarkerView> markers = new ArrayList<>();
+        for (BaseMarkerViewOptions markerViewOption : markerViewOptions) {
+            MarkerView marker = prepareViewMarker(markerViewOption);
+            marker.setMapboxMap(this);
+            long id = mMapView.addMarker(marker);
+            marker.setId(id);
+            mAnnotations.put(id, marker);
+            markers.add(marker);
+        }
+        mMarkerViewManager.invalidateViewMarkersInVisibleRegion();
+        return markers;
     }
 
     /**
@@ -772,6 +852,36 @@ public class MapboxMap {
         int index = mAnnotations.indexOfKey(updatedMarker.getId());
         if (index > -1) {
             mAnnotations.setValueAt(index, updatedMarker);
+        }
+    }
+
+    /**
+     * Update a polygon on this map.
+     *
+     * @param polygon An updated polygon object.
+     */
+    @UiThread
+    public void updatePolygon(Polygon polygon) {
+        mMapView.updatePolygon(polygon);
+
+        int index = mAnnotations.indexOfKey(polygon.getId());
+        if (index > -1) {
+            mAnnotations.setValueAt(index, polygon);
+        }
+    }
+
+    /**
+     * Update a polyline on this map.
+     *
+     * @param polyline An updated polyline object.
+     */
+    @UiThread
+    public void updatePolyline(Polyline polyline) {
+        mMapView.updatePolyline(polyline);
+
+        int index = mAnnotations.indexOfKey(polyline.getId());
+        if (index > -1) {
+            mAnnotations.setValueAt(index, polyline);
         }
     }
 
@@ -1030,7 +1140,8 @@ public class MapboxMap {
     /**
      * Return a annotation based on its id.
      *
-     * @return An annotation with a matched id, null is returned if no match was found.
+     * @param id the id used to look up an annotation
+     * @return An annotation with a matched id, null is returned if no match was found
      */
     @Nullable
     public Annotation getAnnotation(long id) {
@@ -1041,7 +1152,7 @@ public class MapboxMap {
      * Returns a list of all the annotations on the map.
      *
      * @return A list of all the annotation objects. The returned object is a copy so modifying this
-     * list will not update the map.
+     * list will not update the map
      */
     @NonNull
     public List<Annotation> getAnnotations() {
@@ -1142,6 +1253,11 @@ public class MapboxMap {
         }
 
         if (!handledDefaultClick) {
+            if (marker instanceof MarkerView) {
+                mMarkerViewManager.select((MarkerView) marker, false);
+                mMarkerViewManager.ensureInfoWindowOffset((MarkerView) marker);
+            }
+
             if (isInfoWindowValidForMarker(marker) || getInfoWindowAdapter() != null) {
                 mInfoWindows.add(marker.showInfoWindow(this, mMapView));
             }
@@ -1165,7 +1281,7 @@ public class MapboxMap {
             }
 
             if (marker instanceof MarkerView) {
-                mMarkerViewManager.deselect((MarkerView) marker);
+                mMarkerViewManager.deselect((MarkerView) marker, false);
             }
         }
 
@@ -1175,6 +1291,8 @@ public class MapboxMap {
 
     /**
      * Deselects a currently selected marker. The selected marker will have it's info window closed.
+     *
+     * @param marker the marker to deselect
      */
     @UiThread
     public void deselectMarker(@NonNull Marker marker) {
@@ -1184,6 +1302,10 @@ public class MapboxMap {
 
         if (marker.isInfoWindowShown()) {
             marker.hideInfoWindow();
+        }
+
+        if (marker instanceof MarkerView) {
+            mMarkerViewManager.deselect((MarkerView) marker, false);
         }
 
         mSelectedMarkers.remove(marker);
@@ -1208,7 +1330,12 @@ public class MapboxMap {
 
     private MarkerView prepareViewMarker(BaseMarkerViewOptions markerViewOptions) {
         MarkerView marker = markerViewOptions.getMarker();
-        marker.setIcon(markerViewOptions.getIcon());
+
+        Icon icon = markerViewOptions.getIcon();
+        if (icon == null) {
+            icon = IconFactory.getInstance(mMapView.getContext()).defaultMarkerView();
+        }
+        marker.setIcon(icon);
         return marker;
     }
 
@@ -1533,10 +1660,8 @@ public class MapboxMap {
      *
      * @param listener The callback that's invoked when the user clicks on a marker.
      *                 To unset the callback, use null.
-     * @deprecated As of release 4.1.0, replaced by {@link com.mapbox.mapboxsdk.location.LocationServices#addLocationListener(LocationListener)})}
      */
     @UiThread
-    @Deprecated
     public void setOnMyLocationChangeListener(@Nullable MapboxMap.OnMyLocationChangeListener listener) {
         mMapView.setOnMyLocationChangeListener(listener);
     }
@@ -1573,34 +1698,6 @@ public class MapboxMap {
         return mOnMyBearingTrackingModeChangeListener;
     }
 
-    //
-    // Custom layer
-    //
-
-    /**
-     * Do not use this method, experimental feature.
-     */
-    @UiThread
-    public void addCustomLayer(CustomLayer customLayer, String before) {
-        mMapView.addCustomLayer(customLayer, before);
-    }
-
-    /**
-     * Do not use this method, experimental feature.
-     */
-    @UiThread
-    public void removeCustomLayer(String id) {
-        mMapView.removeCustomLayer(id);
-    }
-
-    /**
-     * Do not use this method, experimental feature.
-     */
-    @UiThread
-    public void invalidateCustomLayers() {
-        mMapView.invalidateCustomLayers();
-    }
-
     MapView getMapView() {
         return mMapView;
     }
@@ -1621,7 +1718,7 @@ public class MapboxMap {
      * Triggers an invalidation of the map view.
      */
     public void invalidate() {
-        mMapView.update();
+        mMapView.invalidate();
     }
 
     /**
@@ -1644,6 +1741,33 @@ public class MapboxMap {
     public void snapshot(@NonNull SnapshotReadyCallback callback) {
         mMapView.snapshot(callback, null);
     }
+
+    /**
+     * Queries the map for rendered features
+     *
+     * @param coordinates the point to query
+     * @param layerIds    optionally - only query these layers
+     * @return the list of feature
+     */
+    @UiThread
+    @NonNull
+    public List<Feature> queryRenderedFeatures(@NonNull PointF coordinates, @Nullable String... layerIds) {
+        return mMapView.getNativeMapView().queryRenderedFeatures(coordinates, layerIds);
+    }
+
+    /**
+     * Queries the map for rendered features
+     *
+     * @param coordinates the box to query
+     * @param layerIds    optionally - only query these layers
+     * @return the list of feature
+     */
+    @UiThread
+    @NonNull
+    public List<Feature> queryRenderedFeatures(@NonNull RectF coordinates, @Nullable String... layerIds) {
+        return mMapView.getNativeMapView().queryRenderedFeatures(coordinates, layerIds);
+    }
+
 
     //
     // Interfaces
@@ -1843,7 +1967,6 @@ public class MapboxMap {
         /**
          * Called when an MarkerView is removed from the MapView or the View object is going to be reused.
          * <p>
-         * <p>
          * This method should be used to reset an animated view back to it's original state for view reuse.
          * </p>
          * <p>
@@ -1925,8 +2048,6 @@ public class MapboxMap {
 
     /**
      * Interface definition for a callback to be invoked when the user clicks on a MarkerView.
-     *
-     * @see MarkerViewManager#setOnMarkerViewClickListener(OnMarkerViewClickListener)
      */
     public interface OnMarkerViewClickListener {
 
@@ -1945,9 +2066,7 @@ public class MapboxMap {
      * Interface definition for a callback to be invoked when the the My Location view changes location.
      *
      * @see MapboxMap#setOnMyLocationChangeListener(OnMyLocationChangeListener)
-     * @deprecated As of release 4.1.0, replaced by {@link com.mapbox.mapboxsdk.location.LocationListener}
      */
-    @Deprecated
     public interface OnMyLocationChangeListener {
         /**
          * Called when the location of the My Location view has changed
@@ -2009,6 +2128,8 @@ public class MapboxMap {
     public interface SnapshotReadyCallback {
         /**
          * Invoked when the snapshot has been taken.
+         *
+         * @param snapshot the snapshot bitmap
          */
         void onSnapshotReady(Bitmap snapshot);
     }

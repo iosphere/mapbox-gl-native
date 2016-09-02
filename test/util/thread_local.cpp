@@ -43,9 +43,9 @@ TEST(ThreadLocalStorage, Basic) {
     Thread<TestThread> thread2(context, &number2);
     Thread<TestThread> thread3(context, &number3);
 
-    EXPECT_EQ(number1, thread1.invokeSync<int>(&TestThread::getNumber));
-    EXPECT_EQ(number2, thread2.invokeSync<int>(&TestThread::getNumber));
-    EXPECT_EQ(number3, thread3.invokeSync<int>(&TestThread::getNumber));
+    EXPECT_EQ(number1, thread1.invokeSync(&TestThread::getNumber));
+    EXPECT_EQ(number2, thread2.invokeSync(&TestThread::getNumber));
+    EXPECT_EQ(number3, thread3.invokeSync(&TestThread::getNumber));
 }
 
 TEST(ThreadLocalStorage, NotSetReturnsNull) {
@@ -80,8 +80,8 @@ TEST(ThreadLocalStorage, AutoReclaim) {
 
     unsigned counter = 0;
 
-    DtorCounter* dtorCounter1 = new DtorCounter{ &counter };
-    DtorCounter* dtorCounter2 = new DtorCounter{ &counter };
+    auto dtorCounter1 = new DtorCounter{ &counter };
+    auto dtorCounter2 = new DtorCounter{ &counter };
 
     ThreadContext context = {"Test"};
 

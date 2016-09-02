@@ -1,6 +1,9 @@
 #pragma once
 
-#ifdef __APPLE__
+#if defined(__QT__)
+#define MBGL_USE_QT 1
+class QGLWidget;
+#elif defined(__APPLE__)
 #include <TargetConditionals.h>
 #if TARGET_OS_IOS
 #define MBGL_USE_EAGL 1
@@ -31,7 +34,7 @@ class HeadlessView : public View {
 public:
     HeadlessView(float pixelRatio, uint16_t width = 256, uint16_t height = 256);
     HeadlessView(std::shared_ptr<HeadlessDisplay> display, float pixelRatio, uint16_t width = 256, uint16_t height = 256);
-    ~HeadlessView();
+    ~HeadlessView() override;
 
     float getPixelRatio() const override;
     std::array<uint16_t, 2> getSize() const override;
@@ -40,10 +43,12 @@ public:
     void invalidate() override;
     void activate() override;
     void deactivate() override;
+    void notifyMapChange(MapChange) override;
 
     PremultipliedImage readStillImage() override;
 
     void resize(uint16_t width, uint16_t height);
+    void setMapChangeCallback(std::function<void(MapChange)>&& cb) { mapChangeCallback = std::move(cb); }
 
 private:
     // Implementation specific functions
@@ -63,6 +68,10 @@ private:
     bool extensionsLoaded = false;
     bool active = false;
 
+#if MBGL_USE_QT
+    QGLWidget* glContext = nullptr;
+#endif
+
 #if MBGL_USE_CGL
     CGLContextObj glContext = nullptr;
 #endif
@@ -74,9 +83,11 @@ private:
 #if MBGL_USE_GLX
     Display *xDisplay = nullptr;
     GLXFBConfig *fbConfigs = nullptr;
-    GLXContext glContext = 0;
+    GLXContext glContext = nullptr;
     GLXPbuffer glxPbuffer = 0;
 #endif
+
+    std::function<void(MapChange)> mapChangeCallback;
 
     GLuint fbo = 0;
     GLuint fboDepthStencil = 0;

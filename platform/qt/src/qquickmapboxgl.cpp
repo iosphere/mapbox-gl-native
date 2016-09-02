@@ -3,6 +3,7 @@
 #include <mbgl/util/constants.hpp>
 
 #include <QQuickMapboxGL>
+#include <QQuickMapboxGLStyleProperty>
 
 #include <QDebug>
 #include <QQuickItem>
@@ -22,7 +23,9 @@ QQuickMapboxGL::~QQuickMapboxGL()
 
 QQuickFramebufferObject::Renderer *QQuickMapboxGL::createRenderer() const
 {
-    return new QQuickMapboxGLRenderer();
+    QQuickMapboxGLRenderer *renderer = new QQuickMapboxGLRenderer();
+    connect(renderer, SIGNAL(styleChanged()), this, SIGNAL(styleChanged()));
+    return renderer;
 }
 
 void QQuickMapboxGL::setPlugin(QDeclarativeGeoServiceProvider *)
@@ -148,16 +151,27 @@ bool QQuickMapboxGL::copyrightsVisible() const
     return false;
 }
 
-void QQuickMapboxGL::setColor(const QColor &)
+void QQuickMapboxGL::setColor(const QColor &color)
 {
-    // TODO: can be made functional after landing #837
-    qWarning() << __PRETTY_FUNCTION__
-        << "Use Mapbox Studio to change the map background color.";
+    if (m_color == color) {
+        return;
+    }
+
+    m_color = color;
+
+    QVariantMap paintProperty;
+    paintProperty["type"] = QQuickMapboxGLLayoutStyleProperty::PaintType;
+    paintProperty["layer"] = "background";
+    paintProperty["property"] = "background-color";
+    paintProperty["value"] = color;
+    onStylePropertyUpdated(paintProperty);
+
+    emit colorChanged(m_color);
 }
 
 QColor QQuickMapboxGL::color() const
 {
-    return QColor();
+    return m_color;
 }
 
 void QQuickMapboxGL::pan(int dx, int dy)
@@ -168,13 +182,21 @@ void QQuickMapboxGL::pan(int dx, int dy)
     update();
 }
 
-void QQuickMapboxGL::setStyle(const QString &styleUrl)
+void QQuickMapboxGL::setStyle(QQuickMapboxGLStyle *style)
 {
-    if (m_style == styleUrl) {
+    if (style == m_style) {
         return;
     }
 
-    m_style = styleUrl;
+    disconnect(style, SIGNAL(urlChanged(QString)), this, SLOT(onStyleChanged()));
+    disconnect(style, SIGNAL(propertyUpdated(QVariantMap)), this, SLOT(onStylePropertyUpdated(QVariantMap)));
+    delete m_style;
+    m_style = style;
+    if (style) {
+        style->setParentItem(this);
+        connect(style, SIGNAL(urlChanged(QString)), this, SLOT(onStyleChanged()));
+        connect(style, SIGNAL(propertyUpdated(QVariantMap)), this, SLOT(onStylePropertyUpdated(QVariantMap)));
+    }
 
     m_syncState |= StyleNeedsSync;
     update();
@@ -182,7 +204,7 @@ void QQuickMapboxGL::setStyle(const QString &styleUrl)
     emit styleChanged();
 }
 
-QString QQuickMapboxGL::style() const
+QQuickMapboxGLStyle *QQuickMapboxGL::style() const
 {
     return m_style;
 }
@@ -245,4 +267,47 @@ int QQuickMapboxGL::swapSyncState()
     m_syncState = NothingNeedsSync;
 
     return oldState;
+}
+
+void QQuickMapboxGL::itemChange(QQuickItem::ItemChange change, const QQuickItem::ItemChangeData &value)
+{
+    QQuickFramebufferObject::itemChange(change, value);
+
+    switch (change) {
+    case QQuickItem::ItemChildAddedChange:
+        if (QQuickMapboxGLStyleProperty *property = qobject_cast<QQuickMapboxGLStyleProperty *>(value.item)) {
+            connect(property, SIGNAL(updated(QVariantMap)), this, SLOT(onStylePropertyUpdated(QVariantMap)));
+            connect(this, SIGNAL(styleChanged()), property, SLOT(checkUpdated()));
+        }
+        break;
+    case QQuickItem::ItemChildRemovedChange:
+        if (QQuickMapboxGLStyleProperty *property = qobject_cast<QQuickMapboxGLStyleProperty *>(value.item)) {
+            disconnect(property, SIGNAL(updated(QVariantMap)), this, SLOT(onStylePropertyUpdated(QVariantMap)));
+            disconnect(this, SIGNAL(styleChanged()), property, SLOT(checkUpdated()));
+        }
+    default:
+        break;
+    }
+}
+
+void QQuickMapboxGL::onStylePropertyUpdated(const QVariantMap &params)
+{
+    switch (params.value("type").toInt()) {
+    case QQuickMapboxGLStyleProperty::LayoutType:
+        m_layoutChanges << params;
+        break;
+    case QQuickMapboxGLStyleProperty::PaintType:
+        m_paintChanges << params;
+        break;
+    }
+
+    update();
+}
+
+void QQuickMapboxGL::onStyleChanged()
+{
+    m_syncState |= StyleNeedsSync;
+    update();
+
+    emit styleChanged();
 }
