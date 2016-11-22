@@ -3,6 +3,7 @@
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/types.hpp>
 #include <mbgl/style/filter.hpp>
+#include <mbgl/style/layer_observer.hpp>
 #include <mbgl/renderer/render_pass.hpp>
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
@@ -18,7 +19,7 @@ class Bucket;
 namespace style {
 
 class CascadeParameters;
-class CalculationParameters;
+class PropertyEvaluationParameters;
 class BucketParameters;
 
 /**
@@ -56,7 +57,7 @@ public:
 
     // Fully evaluate cascaded paint properties based on a zoom level.
     // Returns true if any paint properties have active transitions.
-    virtual bool recalculate(const CalculationParameters&) = 0;
+    virtual bool evaluate(const PropertyEvaluationParameters&) = 0;
 
     virtual std::unique_ptr<Bucket> createBucket(BucketParameters&) const = 0;
 
@@ -68,10 +69,12 @@ public:
 
     virtual float getQueryRadius() const { return 0; }
     virtual bool queryIntersectsGeometry(
-            const GeometryCollection&,
+            const GeometryCoordinates&,
             const GeometryCollection&,
             const float,
             const float) const { return false; };
+
+    void setObserver(LayerObserver*);
 
 public:
     std::string id;
@@ -82,6 +85,9 @@ public:
     float minZoom = -std::numeric_limits<float>::infinity();
     float maxZoom = std::numeric_limits<float>::infinity();
     VisibilityType visibility = VisibilityType::Visible;
+
+    LayerObserver nullObserver;
+    LayerObserver* observer = &nullObserver;
 
 protected:
     Impl() = default;

@@ -129,40 +129,45 @@ public class InfoWindow {
                 final float mapRight = mapView.getRight();
                 final float mapLeft = mapView.getLeft();
 
-                float marginHorizontal = resources.getDimension(R.dimen.infowindow_margin);
-                float tipViewOffset = resources.getDimension(R.dimen.infowindow_tipview_width) / 2;
+                float marginHorizontal = resources.getDimension(R.dimen.mapbox_infowindow_margin);
+                float tipViewOffset = resources.getDimension(R.dimen.mapbox_infowindow_tipview_width) / 2;
                 float tipViewMarginLeft = view.getMeasuredWidth() / 2 - tipViewOffset;
 
                 boolean outOfBoundsLeft = false;
                 boolean outOfBoundsRight = false;
 
-                // if out of bounds right
-                if (rightSideInfowWindow > mapRight) {
-                    outOfBoundsRight = true;
-                    x -= rightSideInfowWindow - mapRight;
-                    tipViewMarginLeft += rightSideInfowWindow - mapRight + tipViewOffset;
-                    rightSideInfowWindow = x + view.getMeasuredWidth();
-                }
+                // only optimise margins if view is inside current viewport
+                if (mCoordinates.x >= 0 && mCoordinates.x <= mapView.getWidth()
+                        && mCoordinates.y >= 0 && mCoordinates.y <= mapView.getHeight()) {
 
-                // fit screen left
-                if (leftSideInfoWindow < mapLeft) {
-                    outOfBoundsLeft = true;
-                    x += mapLeft - leftSideInfoWindow;
-                    tipViewMarginLeft -= mapLeft - leftSideInfoWindow + tipViewOffset;
-                    leftSideInfoWindow = x;
-                }
+                    // if out of bounds right
+                    if (rightSideInfowWindow > mapRight) {
+                        outOfBoundsRight = true;
+                        x -= rightSideInfowWindow - mapRight;
+                        tipViewMarginLeft += rightSideInfowWindow - mapRight + tipViewOffset;
+                        rightSideInfowWindow = x + view.getMeasuredWidth();
+                    }
 
-                // Add margin right
-                if (outOfBoundsRight && mapRight - rightSideInfowWindow < marginHorizontal) {
-                    x -= marginHorizontal - (mapRight - rightSideInfowWindow);
-                    tipViewMarginLeft += marginHorizontal - (mapRight - rightSideInfowWindow) - tipViewOffset;
-                    leftSideInfoWindow = x;
-                }
+                    // fit screen left
+                    if (leftSideInfoWindow < mapLeft) {
+                        outOfBoundsLeft = true;
+                        x += mapLeft - leftSideInfoWindow;
+                        tipViewMarginLeft -= mapLeft - leftSideInfoWindow + tipViewOffset;
+                        leftSideInfoWindow = x;
+                    }
 
-                // Add margin left
-                if (outOfBoundsLeft && leftSideInfoWindow - mapLeft < marginHorizontal) {
-                    x += marginHorizontal - (leftSideInfoWindow - mapLeft);
-                    tipViewMarginLeft -= (marginHorizontal - (leftSideInfoWindow - mapLeft)) - tipViewOffset;
+                    // Add margin right
+                    if (outOfBoundsRight && mapRight - rightSideInfowWindow < marginHorizontal) {
+                        x -= marginHorizontal - (mapRight - rightSideInfowWindow);
+                        tipViewMarginLeft += marginHorizontal - (mapRight - rightSideInfowWindow) - tipViewOffset;
+                        leftSideInfoWindow = x;
+                    }
+
+                    // Add margin left
+                    if (outOfBoundsLeft && leftSideInfoWindow - mapLeft < marginHorizontal) {
+                        x += marginHorizontal - (leftSideInfoWindow - mapLeft);
+                        tipViewMarginLeft -= (marginHorizontal - (leftSideInfoWindow - mapLeft)) - tipViewOffset;
+                    }
                 }
 
                 // Adjust tipView

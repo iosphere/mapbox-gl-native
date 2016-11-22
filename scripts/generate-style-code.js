@@ -5,6 +5,8 @@ const ejs = require('ejs');
 const spec = require('mapbox-gl-style-spec').latest;
 var colorParser = require('csscolorparser');
 
+require('./style-code');
+
 function parseCSSColor(str) {
   var color = colorParser.parseCSSColor(str);
   return [
@@ -12,23 +14,11 @@ function parseCSSColor(str) {
   ];
 }
 
-global.camelize = function (str) {
-  return str.replace(/(?:^|-)(.)/g, function (_, x) {
-    return x.toUpperCase();
-  });
-}
-
-global.camelizeWithLeadingLowercase = function (str) {
-  return str.replace(/-(.)/g, function (_, x) {
-    return x.toUpperCase();
-  });
-}
-
 global.propertyType = function (property) {
   if (/-translate-anchor$/.test(property.name)) {
     return 'TranslateAnchorType';
   }
-  if (/-(rotation|pitch)-alignment$/.test(property.name)) {
+  if (/-(rotation|pitch|illumination)-alignment$/.test(property.name)) {
     return 'AlignmentType';
   }
   switch (property.type) {
@@ -102,7 +92,7 @@ const layerCpp = ejs.compile(fs.readFileSync('src/mbgl/style/layers/layer.cpp.ej
 const propertiesHpp = ejs.compile(fs.readFileSync('src/mbgl/style/layers/layer_properties.hpp.ejs', 'utf8'), {strict: true});
 const propertiesCpp = ejs.compile(fs.readFileSync('src/mbgl/style/layers/layer_properties.cpp.ejs', 'utf8'), {strict: true});
 
-const layers = spec.layer.type.values.map((type) => {
+const layers = Object.keys(spec.layer.type.values).map((type) => {
   const layoutProperties = Object.keys(spec[`layout_${type}`]).reduce((memo, name) => {
     if (name !== 'visibility') {
       spec[`layout_${type}`][name].name = name;
@@ -121,16 +111,19 @@ const layers = spec.layer.type.values.map((type) => {
     type: type,
     layoutProperties: layoutProperties,
     paintProperties: paintProperties,
+    doc: spec.layer.type.values[type].doc,
+    layoutPropertiesByName: spec[`layout_${type}`],
+    paintPropertiesByName: spec[`paint_${type}`],
   };
 });
 
 for (const layer of layers) {
-  fs.writeFileSync(`include/mbgl/style/layers/${layer.type}_layer.hpp`, layerHpp(layer));
-  fs.writeFileSync(`src/mbgl/style/layers/${layer.type}_layer.cpp`, layerCpp(layer));
+  writeIfModified(`include/mbgl/style/layers/${layer.type}_layer.hpp`, layerHpp(layer));
+  writeIfModified(`src/mbgl/style/layers/${layer.type}_layer.cpp`, layerCpp(layer));
 
-  fs.writeFileSync(`src/mbgl/style/layers/${layer.type}_layer_properties.hpp`, propertiesHpp(layer));
-  fs.writeFileSync(`src/mbgl/style/layers/${layer.type}_layer_properties.cpp`, propertiesCpp(layer));
+  writeIfModified(`src/mbgl/style/layers/${layer.type}_layer_properties.hpp`, propertiesHpp(layer));
+  writeIfModified(`src/mbgl/style/layers/${layer.type}_layer_properties.cpp`, propertiesCpp(layer));
 }
 
 const propertySettersHpp = ejs.compile(fs.readFileSync('include/mbgl/style/conversion/make_property_setters.hpp.ejs', 'utf8'), {strict: true});
-fs.writeFileSync('include/mbgl/style/conversion/make_property_setters.hpp', propertySettersHpp({layers: layers}));
+writeIfModified('include/mbgl/style/conversion/make_property_setters.hpp', propertySettersHpp({layers: layers}));

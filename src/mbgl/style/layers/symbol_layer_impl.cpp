@@ -1,6 +1,7 @@
 #include <mbgl/style/layers/symbol_layer_impl.hpp>
-#include <mbgl/renderer/symbol_bucket.hpp>
 #include <mbgl/style/bucket_parameters.hpp>
+#include <mbgl/layout/symbol_layout.hpp>
+#include <mbgl/renderer/bucket.hpp>
 
 namespace mbgl {
 namespace style {
@@ -9,70 +10,99 @@ void SymbolLayer::Impl::cascade(const CascadeParameters& parameters) {
     paint.cascade(parameters);
 }
 
-bool SymbolLayer::Impl::recalculate(const CalculationParameters& parameters) {
-    bool hasTransitions = paint.recalculate(parameters);
+bool SymbolLayer::Impl::evaluate(const PropertyEvaluationParameters& parameters) {
+    paint.evaluate(parameters);
 
     // text-size and icon-size are layout properties but they also need to be evaluated as paint properties:
-    layout.iconSize.calculate(parameters);
-    layout.textSize.calculate(parameters);
-    iconSize = layout.iconSize;
-    textSize = layout.textSize;
+    iconSize = layout.evaluate<IconSize>(parameters);
+    textSize = layout.evaluate<TextSize>(parameters);
 
-    passes = ((paint.iconOpacity > 0 && (paint.iconColor.value.a > 0 || paint.iconHaloColor.value.a > 0) && iconSize > 0)
-           || (paint.textOpacity > 0 && (paint.textColor.value.a > 0 || paint.textHaloColor.value.a > 0) && textSize > 0))
+    passes = ((paint.evaluated.get<IconOpacity>() > 0 && (paint.evaluated.get<IconColor>().a > 0 || paint.evaluated.get<IconHaloColor>().a > 0) && iconSize > 0)
+           || (paint.evaluated.get<TextOpacity>() > 0 && (paint.evaluated.get<TextColor>().a > 0 || paint.evaluated.get<TextHaloColor>().a > 0) && textSize > 0))
         ? RenderPass::Translucent : RenderPass::None;
 
-    return hasTransitions;
+    return paint.hasTransition();
 }
 
-std::unique_ptr<Bucket> SymbolLayer::Impl::createBucket(BucketParameters& parameters) const {
-    auto bucket = std::make_unique<SymbolBucket>(parameters.tileID.overscaleFactor(),
-                                                 parameters.tileID.overscaledZ,
-                                                 parameters.mode,
-                                                 id,
-                                                 parameters.layer.getName());
+std::unique_ptr<Bucket> SymbolLayer::Impl::createBucket(BucketParameters&) const {
+    assert(false); // Should be calling createLayout() instead.
+    return nullptr;
+}
 
-    bucket->layout = layout;
+std::unique_ptr<SymbolLayout> SymbolLayer::Impl::createLayout(BucketParameters& parameters) const {
+    PropertyEvaluationParameters p(parameters.tileID.overscaledZ);
+    SymbolLayoutProperties::Evaluated evaluated = layout.evaluate(p);
 
-    CalculationParameters p(parameters.tileID.overscaledZ);
-    bucket->layout.symbolPlacement.calculate(p);
-    if (bucket->layout.symbolPlacement.value == SymbolPlacementType::Line) {
-        bucket->layout.iconRotationAlignment.value = AlignmentType::Map;
-        bucket->layout.textRotationAlignment.value = AlignmentType::Map;
-    };
+    if (evaluated.get<IconRotationAlignment>() == AlignmentType::Auto) {
+        if (evaluated.get<SymbolPlacement>() == SymbolPlacementType::Line) {
+            evaluated.get<IconRotationAlignment>() = AlignmentType::Map;
+        } else {
+            evaluated.get<IconRotationAlignment>() = AlignmentType::Viewport;
+        }
+    }
+
+    if (evaluated.get<TextRotationAlignment>() == AlignmentType::Auto) {
+        if (evaluated.get<SymbolPlacement>() == SymbolPlacementType::Line) {
+            evaluated.get<TextRotationAlignment>() = AlignmentType::Map;
+        } else {
+            evaluated.get<TextRotationAlignment>() = AlignmentType::Viewport;
+        }
+    }
 
     // If unspecified `text-pitch-alignment` inherits `text-rotation-alignment`
-    if (bucket->layout.textPitchAlignment.value == AlignmentType::Undefined) {
-        bucket->layout.textPitchAlignment.value = bucket->layout.textRotationAlignment.value;
+    if (evaluated.get<TextPitchAlignment>() == AlignmentType::Auto) {
+        evaluated.get<TextPitchAlignment>() = evaluated.get<TextRotationAlignment>();
+    }
+
+    float textMaxSize = layout.evaluate<TextSize>(PropertyEvaluationParameters(18));
+
+    evaluated.get<IconSize>() = layout.evaluate<IconSize>(PropertyEvaluationParameters(p.z + 1));
+    evaluated.get<TextSize>() = layout.evaluate<TextSize>(PropertyEvaluationParameters(p.z + 1));
+
+    return std::make_unique<SymbolLayout>(id,
+                                          parameters.layer.getName(),
+                                          parameters.tileID.overscaleFactor(),
+                                          parameters.tileID.overscaledZ,
+                                          parameters.mode,
+                                          parameters.layer,
+                                          filter,
+                                          evaluated,
+                                          textMaxSize,
+                                          *spriteAtlas);
+}
+
+SymbolPropertyValues SymbolLayer::Impl::iconPropertyValues(const SymbolLayoutProperties::Evaluated& layout_) const {
+    return SymbolPropertyValues {
+        layout_.get<IconRotationAlignment>(), // icon-pitch-alignment is not yet implemented; inherit the rotation alignment
+        layout_.get<IconRotationAlignment>(),
+        layout_.get<IconSize>(),
+        paint.evaluated.get<IconOpacity>(),
+        paint.evaluated.get<IconColor>(),
+        paint.evaluated.get<IconHaloColor>(),
+        paint.evaluated.get<IconHaloWidth>(),
+        paint.evaluated.get<IconHaloBlur>(),
+        paint.evaluated.get<IconTranslate>(),
+        paint.evaluated.get<IconTranslateAnchor>(),
+        iconSize,
+        1.0f
     };
+}
 
-    bucket->layout.recalculate(p);
-
-    bucket->layout.iconSize.calculate(CalculationParameters(18));
-    bucket->layout.textSize.calculate(CalculationParameters(18));
-    bucket->iconMaxSize = bucket->layout.iconSize;
-    bucket->textMaxSize = bucket->layout.textSize;
-    bucket->layout.iconSize.calculate(CalculationParameters(p.z + 1));
-    bucket->layout.textSize.calculate(CalculationParameters(p.z + 1));
-
-    bucket->parseFeatures(parameters.layer, filter);
-
-    if (bucket->needsDependencies(parameters.glyphStore, parameters.spriteStore)) {
-        parameters.partialParse = true;
-    }
-
-    // We do not add features if the parser is in a "partial" state because
-    // the layer ordering needs to be respected when calculating text
-    // collisions. Although, at this point, we requested all the resources
-    // needed by this tile.
-    if (!parameters.partialParse) {
-        bucket->addFeatures(parameters.tileUID,
-                            *spriteAtlas,
-                            parameters.glyphAtlas,
-                            parameters.glyphStore);
-    }
-
-    return std::move(bucket);
+SymbolPropertyValues SymbolLayer::Impl::textPropertyValues(const SymbolLayoutProperties::Evaluated& layout_) const {
+    return SymbolPropertyValues {
+        layout_.get<TextPitchAlignment>(),
+        layout_.get<TextRotationAlignment>(),
+        layout_.get<TextSize>(),
+        paint.evaluated.get<TextOpacity>(),
+        paint.evaluated.get<TextColor>(),
+        paint.evaluated.get<TextHaloColor>(),
+        paint.evaluated.get<TextHaloWidth>(),
+        paint.evaluated.get<TextHaloBlur>(),
+        paint.evaluated.get<TextTranslate>(),
+        paint.evaluated.get<TextTranslateAnchor>(),
+        textSize,
+        24.0f
+    };
 }
 
 } // namespace style

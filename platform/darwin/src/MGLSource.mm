@@ -1,19 +1,15 @@
-#import "MGLSource.h"
+#import "MGLSource_Private.h"
 
 #include <mbgl/style/source.hpp>
 
 @implementation MGLSource
 
-- (instancetype)initWithSourceIdentifier:(NSString *)sourceIdentifier {
+- (instancetype)initWithIdentifier:(NSString *)identifier
+{
     if (self = [super init]) {
-        _sourceIdentifier = sourceIdentifier;
+        _identifier = identifier;
     }
     return self;
-}
-
-- (std::unique_ptr<mbgl::style::Source>)mbgl_source {
-    [NSException raise:@"Subclasses must override this method" format:@""];
-    return nil;
 }
 
 @end

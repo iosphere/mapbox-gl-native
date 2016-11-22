@@ -13,13 +13,13 @@ public:
     std::unique_ptr<Layer> cloneRef(const std::string& id) const override;
 
     void cascade(const CascadeParameters&) override;
-    bool recalculate(const CalculationParameters&) override;
+    bool evaluate(const PropertyEvaluationParameters&) override;
 
     std::unique_ptr<Bucket> createBucket(BucketParameters&) const override;
 
     float getQueryRadius() const override;
     bool queryIntersectsGeometry(
-            const GeometryCollection& queryGeometry,
+            const GeometryCoordinates& queryGeometry,
             const GeometryCollection& geometry,
             const float bearing,
             const float pixelsToTileUnits) const override;

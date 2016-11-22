@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mbgl/util/noncopyable.hpp>
+#include <mbgl/util/size.hpp>
 
 #include <string>
 #include <memory>
@@ -8,9 +9,10 @@
 
 namespace mbgl {
 
-enum ImageAlphaMode {
+enum class ImageAlphaMode {
     Unassociated,
-    Premultiplied
+    Premultiplied,
+    Exclusive, // Alpha-channel only
 };
 
 template <ImageAlphaMode Mode>
@@ -18,44 +20,45 @@ class Image : private util::noncopyable {
 public:
     Image() = default;
 
-    Image(size_t w, size_t h)
-        : width(w),
-          height(h),
-          data(std::make_unique<uint8_t[]>(size())) {}
+    Image(Size size_)
+        : size(std::move(size_)),
+          data(std::make_unique<uint8_t[]>(bytes())) {}
 
-    Image(size_t w, size_t h, std::unique_ptr<uint8_t[]> data_)
-        : width(w),
-          height(h),
+    Image(Size size_, std::unique_ptr<uint8_t[]> data_)
+        : size(std::move(size_)),
           data(std::move(data_)) {}
 
     Image(Image&& o)
-        : width(o.width),
-          height(o.height),
+        : size(o.size),
           data(std::move(o.data)) {}
 
     Image& operator=(Image&& o) {
-        width = o.width;
-        height = o.height;
+        size = o.size;
         data = std::move(o.data);
         return *this;
     }
 
     bool operator==(const Image& rhs) const {
-        return width == rhs.width && height == rhs.height &&
-               std::equal(data.get(), data.get() + size(), rhs.data.get(),
-                          rhs.data.get() + rhs.size());
+        return size == rhs.size &&
+               std::equal(data.get(), data.get() + bytes(), rhs.data.get(),
+                          rhs.data.get() + rhs.bytes());
     }
 
-    size_t stride() const { return width * 4; }
-    size_t size() const { return width * height * 4; }
+    bool valid() const {
+        return size && data.get() != nullptr;
+    }
 
-    size_t width = 0;
-    size_t height = 0;
+    size_t stride() const { return channels * size.width; }
+    size_t bytes() const { return stride() * size.height; }
+
+    Size size;
+    static constexpr size_t channels = Mode == ImageAlphaMode::Exclusive ? 1 : 4;
     std::unique_ptr<uint8_t[]> data;
 };
 
 using UnassociatedImage = Image<ImageAlphaMode::Unassociated>;
 using PremultipliedImage = Image<ImageAlphaMode::Premultiplied>;
+using AlphaImage = Image<ImageAlphaMode::Exclusive>;
 
 // TODO: don't use std::string for binary data.
 PremultipliedImage decodeImage(const std::string&);

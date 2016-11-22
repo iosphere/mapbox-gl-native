@@ -1,7 +1,5 @@
 #include <mbgl/geometry/line_atlas.hpp>
-#include <mbgl/gl/gl.hpp>
-#include <mbgl/gl/object_store.hpp>
-#include <mbgl/gl/gl_config.hpp>
+#include <mbgl/gl/context.hpp>
 #include <mbgl/platform/log.hpp>
 #include <mbgl/platform/platform.hpp>
 
@@ -12,17 +10,17 @@
 
 namespace mbgl {
 
-LineAtlas::LineAtlas(GLsizei w, GLsizei h)
-    : width(w),
-      height(h),
-      data(std::make_unique<GLbyte[]>(w * h)),
+LineAtlas::LineAtlas(const Size size)
+    : image(size),
       dirty(true) {
 }
 
 LineAtlas::~LineAtlas() = default;
 
-LinePatternPos LineAtlas::getDashPosition(const std::vector<float>& dasharray, bool round) {
-    size_t key = round ? std::numeric_limits<size_t>::min() : std::numeric_limits<size_t>::max();
+LinePatternPos LineAtlas::getDashPosition(const std::vector<float>& dasharray,
+                                          LinePatternCap patternCap) {
+    size_t key = patternCap == LinePatternCap::Round ? std::numeric_limits<size_t>::min()
+                                                     : std::numeric_limits<size_t>::max();
     for (const float part : dasharray) {
         boost::hash_combine<float>(key, part);
     }
@@ -30,7 +28,7 @@ LinePatternPos LineAtlas::getDashPosition(const std::vector<float>& dasharray, b
     // Note: We're not handling hash collisions here.
     const auto it = positions.find(key);
     if (it == positions.end()) {
-        auto inserted = positions.emplace(key, addDash(dasharray, round));
+        auto inserted = positions.emplace(key, addDash(dasharray, patternCap));
         assert(inserted.second);
         return inserted.first->second;
     } else {
@@ -38,12 +36,12 @@ LinePatternPos LineAtlas::getDashPosition(const std::vector<float>& dasharray, b
     }
 }
 
-LinePatternPos LineAtlas::addDash(const std::vector<float>& dasharray, bool round) {
-    int n = round ? 7 : 0;
-    int dashheight = 2 * n + 1;
+LinePatternPos LineAtlas::addDash(const std::vector<float>& dasharray, LinePatternCap patternCap) {
+    const uint8_t n = patternCap == LinePatternCap::Round ? 7 : 0;
+    const uint8_t dashheight = 2 * n + 1;
     const uint8_t offset = 128;
 
-    if (nextRow + dashheight > height) {
+    if (nextRow + dashheight > image.size.height) {
         Log::Warning(Event::OpenGL, "line atlas bitmap overflow");
         return LinePatternPos();
     }
@@ -53,7 +51,7 @@ LinePatternPos LineAtlas::addDash(const std::vector<float>& dasharray, bool roun
         length += part;
     }
 
-    float stretch = width / length;
+    float stretch = image.size.width / length;
     float halfWidth = stretch * 0.5;
     // If dasharray has an odd length, both the first and last parts
     // are dashes and should be joined seamlessly.
@@ -61,7 +59,7 @@ LinePatternPos LineAtlas::addDash(const std::vector<float>& dasharray, bool roun
 
     for (int y = -n; y <= n; y++) {
         int row = nextRow + n + y;
-        int index = width * row;
+        int index = image.size.width * row;
 
         float left = 0;
         float right = dasharray[0];
@@ -71,7 +69,7 @@ LinePatternPos LineAtlas::addDash(const std::vector<float>& dasharray, bool roun
             left -= dasharray.back();
         }
 
-        for (int x = 0; x < width; x++) {
+        for (uint32_t x = 0; x < image.size.width; x++) {
 
             while (right < x / stretch) {
                 left = right;
@@ -90,7 +88,7 @@ LinePatternPos LineAtlas::addDash(const std::vector<float>& dasharray, bool roun
             bool inside = (partIndex % 2) == 1;
             int signedDistance;
 
-            if (round) {
+            if (patternCap == LinePatternCap::Round) {
                 float distMiddle = n ? (float)y / n * (halfWidth + 1) : 0;
                 if (inside) {
                     float distEdge = halfWidth - fabs(distMiddle);
@@ -103,13 +101,13 @@ LinePatternPos LineAtlas::addDash(const std::vector<float>& dasharray, bool roun
                 signedDistance = int((inside ? 1 : -1) * dist);
             }
 
-            data[index + x] = fmax(0, fmin(255, signedDistance + offset));
+            image.data[index + x] = fmax(0, fmin(255, signedDistance + offset));
         }
     }
 
     LinePatternPos position;
-    position.y = (0.5 + nextRow + n) / height;
-    position.height = (2.0 * n) / height;
+    position.y = (0.5 + nextRow + n) / image.size.height;
+    position.height = (2.0 * n) / image.size.height;
     position.width = length;
 
     nextRow += dashheight;
@@ -119,59 +117,24 @@ LinePatternPos LineAtlas::addDash(const std::vector<float>& dasharray, bool roun
     return position;
 }
 
-void LineAtlas::upload(gl::ObjectStore& store, gl::Config& config, uint32_t unit) {
-    if (dirty) {
-        bind(store, config, unit);
-    }
+Size LineAtlas::getSize() const {
+    return image.size;
 }
 
-void LineAtlas::bind(gl::ObjectStore& store, gl::Config& config, uint32_t unit) {
-    bool first = false;
+void LineAtlas::upload(gl::Context& context, gl::TextureUnit unit) {
     if (!texture) {
-        texture = store.createTexture();
-        config.activeTexture = unit;
-        config.texture[unit] = *texture;
-        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
-        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-        first = true;
-    } else if (config.texture[unit] != *texture) {
-        config.activeTexture = unit;
-        config.texture[unit] = *texture;
+        texture = context.createTexture(image, unit);
+    } else if (dirty) {
+        context.updateTexture(*texture, image, unit);
     }
 
-    if (dirty) {
-        config.activeTexture = unit;
-        if (first) {
-            MBGL_CHECK_ERROR(glTexImage2D(
-                GL_TEXTURE_2D, // GLenum target
-                0, // GLint level
-                GL_ALPHA, // GLint internalformat
-                width, // GLsizei width
-                height, // GLsizei height
-                0, // GLint border
-                GL_ALPHA, // GLenum format
-                GL_UNSIGNED_BYTE, // GLenum type
-                data.get() // const GLvoid * data
-            ));
-        } else {
-            MBGL_CHECK_ERROR(glTexSubImage2D(
-                GL_TEXTURE_2D, // GLenum target
-                0, // GLint level
-                0, // GLint xoffset
-                0, // GLint yoffset
-                width, // GLsizei width
-                height, // GLsizei height
-                GL_ALPHA, // GLenum format
-                GL_UNSIGNED_BYTE, // GLenum type
-                data.get() // const GLvoid *pixels
-            ));
-        }
+    dirty = false;
+}
 
-
-        dirty = false;
-    }
+void LineAtlas::bind(gl::Context& context, gl::TextureUnit unit) {
+    upload(context, unit);
+    context.bindTexture(*texture, unit, gl::TextureFilter::Linear, gl::TextureMipMap::No,
+                        gl::TextureWrap::Repeat, gl::TextureWrap::Clamp);
 }
 
 } // namespace mbgl

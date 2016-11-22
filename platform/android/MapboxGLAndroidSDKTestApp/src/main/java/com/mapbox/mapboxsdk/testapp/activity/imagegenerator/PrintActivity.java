@@ -17,7 +17,7 @@ import com.mapbox.mapboxsdk.testapp.R;
 
 public class PrintActivity extends AppCompatActivity implements MapboxMap.SnapshotReadyCallback {
 
-    private MapView mMapView;
+    private MapView mapView;
     private MapboxMap mapboxMap;
 
     @Override
@@ -34,9 +34,9 @@ public class PrintActivity extends AppCompatActivity implements MapboxMap.Snapsh
             actionBar.setDisplayShowHomeEnabled(true);
         }
 
-        mMapView = (MapView) findViewById(R.id.mapView);
-        mMapView.onCreate(savedInstanceState);
-        mMapView.getMapAsync(new OnMapReadyCallback() {
+        mapView = (MapView) findViewById(R.id.mapView);
+        mapView.onCreate(savedInstanceState);
+        mapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull MapboxMap mapboxMap) {
                 PrintActivity.this.mapboxMap = mapboxMap;
@@ -47,8 +47,8 @@ public class PrintActivity extends AppCompatActivity implements MapboxMap.Snapsh
         if (fab != null) {
             fab.setOnClickListener(new View.OnClickListener() {
                 @Override
-                public void onClick(View v) {
-                    if(mapboxMap !=null) {
+                public void onClick(View view) {
+                    if (mapboxMap != null) {
                         mapboxMap.snapshot(PrintActivity.this);
                     }
                 }
@@ -64,33 +64,45 @@ public class PrintActivity extends AppCompatActivity implements MapboxMap.Snapsh
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        mMapView.onResume();
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
     }
 
     @Override
-    public void onPause() {
+    protected void onResume() {
+        super.onResume();
+        mapView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
         super.onPause();
-        mMapView.onPause();
+        mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        mMapView.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mMapView.onDestroy();
+        mapView.onDestroy();
     }
 
     @Override
     public void onLowMemory() {
         super.onLowMemory();
-        mMapView.onLowMemory();
+        mapView.onLowMemory();
     }
 
     @Override

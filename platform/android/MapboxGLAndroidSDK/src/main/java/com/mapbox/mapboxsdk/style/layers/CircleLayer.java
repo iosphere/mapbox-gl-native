@@ -9,7 +9,9 @@ import android.support.annotation.NonNull;
 import static com.mapbox.mapboxsdk.utils.ColorUtils.*;
 
 /**
- * Circle Layer
+ * A filled circle.
+ *
+ * @see <a href="https://www.mapbox.com/mapbox-gl-style-spec/#layers-circle">The online documentation</a>
  */
 public class CircleLayer extends Layer {
 
@@ -34,13 +36,12 @@ public class CircleLayer extends Layer {
 
     protected native void initialize(String layerId, String sourceId);
 
-   /**
+    /**
      * Set the source layer.
      *
      * @param sourceLayer the source layer to set
      */
     public void setSourceLayer(String sourceLayer) {
-        checkValidity();
         nativeSetSourceLayer(sourceLayer);
     }
 
@@ -60,7 +61,6 @@ public class CircleLayer extends Layer {
      * @param filter the filter to set
      */
     public void setFilter(Filter.Statement filter) {
-        checkValidity();
         this.setFilter(filter.toArray());
     }
 
@@ -70,7 +70,6 @@ public class CircleLayer extends Layer {
      * @param filter the filter array to set
      */
     public void setFilter(Object[] filter) {
-        checkValidity();
         nativeSetFilter(filter);
     }
 
@@ -117,7 +116,6 @@ public class CircleLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getCircleRadius() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetCircleRadius());
     }
  
@@ -128,18 +126,16 @@ public class CircleLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getCircleColor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetCircleColor());
     }
      /**
-     * The color of the circle.
+     * The fill color of the circle.
      *
      * @return int representation of a rgba string color
      * @throws RuntimeException thrown if property isn't a value
      */
     @ColorInt
     public int getCircleColorAsInt() {
-        checkValidity();
         PropertyValue<String> value = getCircleColor();
         if (value.isValue()) {
             return rgbaToColor(value.getValue());
@@ -156,7 +152,6 @@ public class CircleLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getCircleBlur() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetCircleBlur());
     }
  
@@ -167,7 +162,6 @@ public class CircleLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getCircleOpacity() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetCircleOpacity());
     }
  
@@ -178,7 +172,6 @@ public class CircleLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float[]> getCircleTranslate() {
-        checkValidity();
         return (PropertyValue<Float[]>) new PropertyValue(nativeGetCircleTranslate());
     }
  
@@ -189,7 +182,6 @@ public class CircleLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getCircleTranslateAnchor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetCircleTranslateAnchor());
     }
  
@@ -200,7 +192,6 @@ public class CircleLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getCirclePitchScale() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetCirclePitchScale());
     }
  

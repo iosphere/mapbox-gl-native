@@ -16,6 +16,7 @@ import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.style.layers.CircleLayer;
 import com.mapbox.mapboxsdk.style.layers.SymbolLayer;
+import com.mapbox.mapboxsdk.style.sources.GeoJsonOptions;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
 import com.mapbox.mapboxsdk.testapp.R;
 
@@ -66,15 +67,27 @@ public class GeoJsonClusteringActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onResume() {
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
         super.onResume();
         mapView.onResume();
     }
 
     @Override
-    public void onPause() {
+    protected void onPause() {
         super.onPause();
         mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override
@@ -110,13 +123,16 @@ public class GeoJsonClusteringActivity extends AppCompatActivity {
         //Add a clustered source
         try {
             mapboxMap.addSource(
-                    new GeoJsonSource("earthquakes", new URL("https://www.mapbox.com/mapbox-gl-js/assets/earthquakes.geojson"))
-                            .withCluster(true)
-                            .withClusterMaxZoom(14)
-                            .withClusterRadius(50)
+                    new GeoJsonSource("earthquakes",
+                            new URL("https://www.mapbox.com/mapbox-gl-js/assets/earthquakes.geojson"),
+                            new GeoJsonOptions()
+                                    .withCluster(true)
+                                    .withClusterMaxZoom(14)
+                                    .withClusterRadius(50)
+                    )
             );
-        } catch (MalformedURLException e) {
-            Log.e(TAG, "That's not an url... " + e.getMessage());
+        } catch (MalformedURLException malformedUrlException) {
+            Log.e(TAG, "That's not an url... " + malformedUrlException.getMessage());
         }
 
         //Add unclustered layer
@@ -138,8 +154,8 @@ public class GeoJsonClusteringActivity extends AppCompatActivity {
                     circleRadius(18f)
             );
             circles.setFilter(
-                    i == 0 ?
-                            gte("point_count", layers[i][0]) :
+                    i == 0
+                        ? gte("point_count", layers[i][0]) :
                             all(gte("point_count", layers[i][0]), lt("point_count", layers[i - 1][0]))
             );
             mapboxMap.addLayer(circles);

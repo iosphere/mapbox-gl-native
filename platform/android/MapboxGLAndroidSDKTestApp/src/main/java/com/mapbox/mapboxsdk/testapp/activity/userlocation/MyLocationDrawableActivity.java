@@ -33,8 +33,6 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
 
     private MapView mapView;
     private MapboxMap mapboxMap;
-    private Location location;
-    private boolean firstRun;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -52,7 +50,6 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
         findViewById(R.id.progress).setVisibility(View.GONE);
 
         MapboxMapOptions mapboxMapOptions = new MapboxMapOptions();
-        mapboxMapOptions.accessToken(getString(R.string.mapbox_access_token));
         mapboxMapOptions.styleUrl(Style.MAPBOX_STREETS);
 
         // configure MyLocationView drawables
@@ -61,8 +58,8 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
         mapboxMapOptions.myLocationForegroundTintColor(Color.GREEN);
         mapboxMapOptions.myLocationBackgroundTintColor(Color.YELLOW);
         mapboxMapOptions.myLocationBackgroundPadding(new int[]{0, 0,
-                (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding),
-                (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding)});
+            (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding),
+            (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding)});
 
         mapboxMapOptions.myLocationAccuracyTint(Color.RED);
         mapboxMapOptions.myLocationAccuracyAlpha(155);
@@ -84,9 +81,13 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
 
     public void toggleGps(boolean enableGps) {
         if (enableGps) {
-            if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) ||
-                    (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_LOCATION);
+            if ((ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+                || (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED)) {
+                ActivityCompat.requestPermissions(this, new String[]{
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_LOCATION);
             } else {
                 enableLocation(true);
             }
@@ -110,12 +111,10 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSIONS_LOCATION: {
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    enableLocation(true);
-                }
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == PERMISSIONS_LOCATION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                enableLocation(true);
             }
         }
     }
@@ -128,15 +127,27 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
     }
 
     @Override
-    public void onResume() {
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
         super.onResume();
         mapView.onResume();
     }
 
     @Override
-    public void onPause() {
+    protected void onPause() {
         super.onPause();
         mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override

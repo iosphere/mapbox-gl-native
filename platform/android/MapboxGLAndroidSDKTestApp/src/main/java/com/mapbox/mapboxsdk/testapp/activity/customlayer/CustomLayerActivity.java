@@ -13,11 +13,10 @@ import android.view.View;
 
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.geometry.LatLng;
-import com.mapbox.mapboxsdk.style.layers.CustomLayer;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
-import com.mapbox.mapboxsdk.style.layers.Layer;
+import com.mapbox.mapboxsdk.style.layers.CustomLayer;
 import com.mapbox.mapboxsdk.style.layers.NoSuchLayerException;
 import com.mapbox.mapboxsdk.testapp.R;
 import com.mapbox.mapboxsdk.testapp.model.customlayer.ExampleCustomLayer;
@@ -27,8 +26,8 @@ public class CustomLayerActivity extends AppCompatActivity {
 
     private MapboxMap mapboxMap;
     private MapView mapView;
+    private CustomLayer customLayer;
 
-    private boolean isShowingCustomLayer = false;
     private FloatingActionButton fab;
 
     @Override
@@ -44,7 +43,6 @@ public class CustomLayerActivity extends AppCompatActivity {
             @Override
             public void onMapReady(MapboxMap map) {
                 mapboxMap = map;
-
                 mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(39.91448, -243.60947), 10));
 
             }
@@ -54,7 +52,7 @@ public class CustomLayerActivity extends AppCompatActivity {
         fab.setColorFilter(ContextCompat.getColor(this, R.color.primary));
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
+            public void onClick(View view) {
                 if (mapboxMap != null) {
                     swapCustomLayer();
                 }
@@ -63,43 +61,53 @@ public class CustomLayerActivity extends AppCompatActivity {
     }
 
     private void swapCustomLayer() {
-
-        if (isShowingCustomLayer) {
+        if (customLayer != null) {
             try {
-                mapboxMap.removeLayer("custom");
-            } catch (NoSuchLayerException e) {
+                mapboxMap.removeLayer(customLayer.getId());
+                customLayer = null;
+            } catch (NoSuchLayerException noSuchLayerException) {
                 Log.e(TAG, "No custom layer to remove");
             }
             fab.setImageResource(R.drawable.ic_layers_24dp);
         } else {
-            mapboxMap.addLayer(new CustomLayer("custom",
+            customLayer = new CustomLayer("custom",
                     ExampleCustomLayer.createContext(),
                     ExampleCustomLayer.InitializeFunction,
                     ExampleCustomLayer.RenderFunction,
-                    ExampleCustomLayer.DeinitializeFunction), "building");
+                    ExampleCustomLayer.DeinitializeFunction);
+            mapboxMap.addLayer(customLayer, "building");
             fab.setImageResource(R.drawable.ic_layers_clear_24dp);
         }
-
-        isShowingCustomLayer = !isShowingCustomLayer;
     }
 
     private void updateLayer() {
-        CustomLayer custom = mapboxMap.getLayerAs("custom");
-        if (custom != null) {
-            custom.update();
+        if (customLayer != null) {
+            customLayer.update();
         }
     }
 
     @Override
-    public void onResume() {
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
         super.onResume();
         mapView.onResume();
     }
 
     @Override
-    public void onPause() {
+    protected void onPause() {
         super.onPause();
         mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override
@@ -134,6 +142,15 @@ public class CustomLayerActivity extends AppCompatActivity {
                 return true;
             case R.id.action_update_layer:
                 updateLayer();
+                return true;
+            case R.id.action_set_color_red:
+                ExampleCustomLayer.setColor(1, 0, 0, 1);
+                return true;
+            case R.id.action_set_color_green:
+                ExampleCustomLayer.setColor(0, 1, 0, 1);
+                return true;
+            case R.id.action_set_color_blue:
+                ExampleCustomLayer.setColor(0, 0, 1, 1);
                 return true;
             default:
                 return super.onOptionsItemSelected(item);

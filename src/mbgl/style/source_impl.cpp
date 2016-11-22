@@ -5,6 +5,7 @@
 #include <mbgl/renderer/painter.hpp>
 #include <mbgl/style/update_parameters.hpp>
 #include <mbgl/style/query_parameters.hpp>
+#include <mbgl/text/placement_config.hpp>
 #include <mbgl/platform/log.hpp>
 #include <mbgl/math/clamp.hpp>
 #include <mbgl/util/tile_cover.hpp>
@@ -69,19 +70,19 @@ void Source::Impl::startRender(algorithm::ClipIDGenerator& generator,
 void Source::Impl::finishRender(Painter& painter) {
     for (auto& pair : renderTiles) {
         auto& tile = pair.second;
-        painter.renderTileDebug(tile);
+        if (tile.used) {
+            painter.renderTileDebug(tile);
+        }
     }
 }
 
-const std::map<UnwrappedTileID, RenderTile>& Source::Impl::getRenderTiles() const {
+std::map<UnwrappedTileID, RenderTile>& Source::Impl::getRenderTiles() {
     return renderTiles;
 }
 
-bool Source::Impl::update(const UpdateParameters& parameters) {
-    bool allTilesUpdated = true;
-
-    if (!loaded || parameters.animationTime <= updated) {
-        return allTilesUpdated;
+void Source::Impl::updateTiles(const UpdateParameters& parameters) {
+    if (!loaded) {
+        return;
     }
 
     const uint16_t tileSize = getTileSize();
@@ -138,15 +139,28 @@ bool Source::Impl::update(const UpdateParameters& parameters) {
     algorithm::updateRenderables(getTileFn, createTileFn, retainTileFn, renderTileFn,
                                  idealTiles, zoomRange, tileZoom);
 
-    if (type != SourceType::Raster && type != SourceType::Annotations && cache.getSize() == 0) {
+    if (type != SourceType::Annotations && cache.getSize() == 0) {
         size_t conservativeCacheSize =
-            ((float)parameters.transformState.getWidth() / util::tileSize) *
-            ((float)parameters.transformState.getHeight() / util::tileSize) *
+            ((float)parameters.transformState.getSize().width / util::tileSize) *
+            ((float)parameters.transformState.getSize().height / util::tileSize) *
             (parameters.transformState.getMaxZoom() - parameters.transformState.getMinZoom() + 1) *
             0.5;
         cache.setSize(conservativeCacheSize);
     }
 
+    removeStaleTiles(retain);
+
+    const PlacementConfig config { parameters.transformState.getAngle(),
+                                   parameters.transformState.getPitch(),
+                                   parameters.debugOptions & MapDebugOptions::Collision };
+
+    for (auto& pair : tiles) {
+        pair.second->setPlacementConfig(config);
+    }
+}
+
+// Moves all tiles to the cache except for those specified in the retain set.
+void Source::Impl::removeStaleTiles(const std::set<OverscaledTileID>& retain) {
     // Remove stale tiles. This goes through the (sorted!) tiles map and retain set in lockstep
     // and removes items from tiles that don't have the corresponding key in the retain set.
     auto tilesIt = tiles.begin();
@@ -163,41 +177,32 @@ bool Source::Impl::update(const UpdateParameters& parameters) {
             ++retainIt;
         }
     }
-
-    const PlacementConfig newConfig{ parameters.transformState.getAngle(),
-                                     parameters.transformState.getPitch(),
-                                     parameters.debugOptions & MapDebugOptions::Collision };
-    for (auto& pair : tiles) {
-        auto tile = pair.second.get();
-        if (parameters.shouldReparsePartialTiles && tile->isIncomplete()) {
-            if (!tile->parsePending()) {
-                allTilesUpdated = false;
-            }
-        } else {
-            tile->redoPlacement(newConfig);
-        }
-    }
-
-    updated = parameters.animationTime;
-
-    return allTilesUpdated;
 }
 
-static Point<int16_t> coordinateToTilePoint(const UnwrappedTileID& tileID, const Point<double>& p) {
-    auto zoomedCoord = TileCoordinate { p, 0 }.zoomTo(tileID.canonical.z);
-    return {
-        int16_t(util::clamp<int64_t>((zoomedCoord.p.x - tileID.canonical.x - tileID.wrap * std::pow(2, tileID.canonical.z)) * util::EXTENT,
-                    std::numeric_limits<int16_t>::min(),
-                    std::numeric_limits<int16_t>::max())),
-        int16_t(util::clamp<int64_t>((zoomedCoord.p.y - tileID.canonical.y) * util::EXTENT,
-                    std::numeric_limits<int16_t>::min(),
-                    std::numeric_limits<int16_t>::max()))
-    };
+void Source::Impl::removeTiles() {
+    renderTiles.clear();
+    if (!tiles.empty()) {
+        removeStaleTiles({});
+    }
+}
+
+void Source::Impl::updateSymbolDependentTiles() {
+    for (auto& pair : tiles) {
+        pair.second->symbolDependenciesChanged();
+    }
+}
+
+void Source::Impl::reloadTiles() {
+    cache.clear();
+
+    for (auto& pair : tiles) {
+        pair.second->redoLayout();
+    }
 }
 
 std::unordered_map<std::string, std::vector<Feature>> Source::Impl::queryRenderedFeatures(const QueryParameters& parameters) const {
     std::unordered_map<std::string, std::vector<Feature>> result;
-    if (renderTiles.empty()) {
+    if (renderTiles.empty() || parameters.geometry.empty()) {
         return result;
     }
 
@@ -205,34 +210,44 @@ std::unordered_map<std::string, std::vector<Feature>> Source::Impl::queryRendere
 
     for (const auto& p : parameters.geometry) {
         queryGeometry.push_back(TileCoordinate::fromScreenCoordinate(
-            parameters.transformState, 0, { p.x, parameters.transformState.getHeight() - p.y }).p);
-    }
-
-    if (queryGeometry.empty()) {
-        return result;
+            parameters.transformState, 0, { p.x, parameters.transformState.getSize().height - p.y }).p);
     }
 
     mapbox::geometry::box<double> box = mapbox::geometry::envelope(queryGeometry);
 
-    for (const auto& tilePtr : renderTiles) {
-        const RenderTile& tile = tilePtr.second;
 
-        Point<int16_t> tileSpaceBoundsMin = coordinateToTilePoint(tile.id, box.min);
-        Point<int16_t> tileSpaceBoundsMax = coordinateToTilePoint(tile.id, box.max);
+    auto sortRenderTiles = [](const RenderTile& a, const RenderTile& b) {
+        return a.id.canonical.z != b.id.canonical.z ? a.id.canonical.z < b.id.canonical.z :
+               a.id.canonical.y != b.id.canonical.y ? a.id.canonical.y < b.id.canonical.y :
+               a.id.wrap != b.id.wrap ? a.id.wrap < b.id.wrap : a.id.canonical.x < b.id.canonical.x;
+    };
+    std::vector<std::reference_wrapper<const RenderTile>> sortedTiles;
+    std::transform(renderTiles.cbegin(), renderTiles.cend(), std::back_inserter(sortedTiles),
+                   [](const auto& pair) { return std::ref(pair.second); });
+    std::sort(sortedTiles.begin(), sortedTiles.end(), sortRenderTiles);
 
-        if (tileSpaceBoundsMin.x >= util::EXTENT || tileSpaceBoundsMin.y >= util::EXTENT ||
-            tileSpaceBoundsMax.x < 0 || tileSpaceBoundsMax.y < 0) continue;
-
-        GeometryCoordinates tileSpaceQueryGeometry;
-
-        for (const auto& c : queryGeometry) {
-            tileSpaceQueryGeometry.push_back(coordinateToTilePoint(tile.id, c));
+    for (const auto& renderTileRef : sortedTiles) {
+        const RenderTile& renderTile = renderTileRef.get();
+        GeometryCoordinate tileSpaceBoundsMin = TileCoordinate::toGeometryCoordinate(renderTile.id, box.min);
+        if (tileSpaceBoundsMin.x >= util::EXTENT || tileSpaceBoundsMin.y >= util::EXTENT) {
+            continue;
         }
 
-        tile.tile.queryRenderedFeatures(result,
-                                        tileSpaceQueryGeometry,
-                                        parameters.transformState,
-                                        parameters.layerIDs);
+        GeometryCoordinate tileSpaceBoundsMax = TileCoordinate::toGeometryCoordinate(renderTile.id, box.max);
+        if (tileSpaceBoundsMax.x < 0 || tileSpaceBoundsMax.y < 0) {
+            continue;
+        }
+
+        GeometryCoordinates tileSpaceQueryGeometry;
+        tileSpaceQueryGeometry.reserve(queryGeometry.size());
+        for (const auto& c : queryGeometry) {
+            tileSpaceQueryGeometry.push_back(TileCoordinate::toGeometryCoordinate(renderTile.id, c));
+        }
+
+        renderTile.tile.queryRenderedFeatures(result,
+                                              tileSpaceQueryGeometry,
+                                              parameters.transformState,
+                                              parameters.layerIDs);
     }
 
     return result;
@@ -250,16 +265,12 @@ void Source::Impl::setObserver(SourceObserver* observer_) {
     observer = observer_;
 }
 
-void Source::Impl::onTileLoaded(Tile& tile, bool isNewTile) {
-    observer->onTileLoaded(base, tile.id, isNewTile);
+void Source::Impl::onTileChanged(Tile& tile) {
+    observer->onTileChanged(base, tile.id);
 }
 
 void Source::Impl::onTileError(Tile& tile, std::exception_ptr error) {
     observer->onTileError(base, tile.id, error);
-}
-
-void Source::Impl::onNeedsRepaint() {
-    observer->onNeedsRepaint();
 }
 
 void Source::Impl::dumpDebugLogs() const {
@@ -267,8 +278,7 @@ void Source::Impl::dumpDebugLogs() const {
     Log::Info(Event::General, "Source::loaded: %d", loaded);
 
     for (const auto& pair : tiles) {
-        auto& tile = pair.second;
-        tile->dumpDebugLogs();
+        pair.second->dumpDebugLogs();
     }
 }
 

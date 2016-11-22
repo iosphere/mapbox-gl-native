@@ -49,6 +49,13 @@ public class Marker extends Annotation {
         title = baseMarkerViewOptions.title;
     }
 
+    Marker(LatLng position, Icon icon, String title, String snippet) {
+        this.position = position;
+        this.icon = icon;
+        this.title = title;
+        this.snippet = snippet;
+    }
+
     public LatLng getPosition() {
         return position;
     }
@@ -178,7 +185,7 @@ public class Marker extends Annotation {
 
     private InfoWindow getInfoWindow(@NonNull MapView mapView) {
         if (infoWindow == null && mapView.getContext() != null) {
-            infoWindow = new InfoWindow(mapView, R.layout.infowindow_view, getMapboxMap());
+            infoWindow = new InfoWindow(mapView, R.layout.mapbox_infowindow_view, getMapboxMap());
         }
         return infoWindow;
     }

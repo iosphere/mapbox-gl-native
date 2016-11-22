@@ -3,6 +3,7 @@
 
 #include <QMapbox>
 #include <QObject>
+#include <QSize>
 #include <QPointF>
 
 class QImage;
@@ -10,6 +11,7 @@ class QMargins;
 class QSize;
 class QString;
 class QStringList;
+class QOpenGLFramebufferObject;
 
 class QMapboxGLPrivate;
 
@@ -85,7 +87,6 @@ class Q_DECL_EXPORT QMapboxGL : public QObject
     Q_PROPERTY(double zoom READ zoom WRITE setZoom)
     Q_PROPERTY(double bearing READ bearing WRITE setBearing)
     Q_PROPERTY(double pitch READ pitch WRITE setPitch)
-    Q_ENUMS(MapChange)
 
 public:
     // Determines the orientation of the map.
@@ -96,25 +97,10 @@ public:
         NorthLeftwards,
     };
 
-    // Reflects mbgl::MapChange.
-    enum MapChange {
-        MapChangeRegionWillChange = 0,
-        MapChangeRegionWillChangeAnimated,
-        MapChangeRegionIsChanging,
-        MapChangeRegionDidChange,
-        MapChangeRegionDidChangeAnimated,
-        MapChangeWillStartLoadingMap,
-        MapChangeDidFinishLoadingMap,
-        MapChangeDidFailLoadingMap,
-        MapChangeWillStartRenderingFrame,
-        MapChangeDidFinishRenderingFrame,
-        MapChangeDidFinishRenderingFrameFullyRendered,
-        MapChangeWillStartRenderingMap,
-        MapChangeDidFinishRenderingMap,
-        MapChangeDidFinishRenderingMapFullyRendered
-    };
-
-    QMapboxGL(QObject *parent = 0, const QMapboxGLSettings& = QMapboxGLSettings());
+    QMapboxGL(QObject* parent = 0,
+              const QMapboxGLSettings& = QMapboxGLSettings(),
+              const QSize& size = QSize(),
+              qreal pixelRatio = 1);
     virtual ~QMapboxGL();
 
     void cycleDebugOptions();
@@ -159,13 +145,13 @@ public:
     void setGestureInProgress(bool inProgress);
 
     void addClass(const QString &);
-    void addClass(const QString &, const QMapbox::TransitionOptions &);
     void removeClass(const QString &);
-    void removeClass(const QString &, const QMapbox::TransitionOptions &);
     bool hasClass(const QString &) const;
     void setClasses(const QStringList &);
-    void setClasses(const QStringList &, const QMapbox::TransitionOptions &);
     QStringList getClasses() const;
+
+    QMapbox::TransitionOptions getTransitionOptions() const;
+    void setTransitionOptions(const QMapbox::TransitionOptions&);
 
     QMapbox::AnnotationID addPointAnnotation(const QMapbox::PointAnnotation &);
     QMapbox::AnnotationID addShapeAnnotation(const QMapbox::ShapeAnnotation &);
@@ -186,7 +172,7 @@ public:
     void scaleBy(double scale, const QPointF &center = QPointF());
     void rotateBy(const QPointF &first, const QPointF &second);
 
-    void resize(const QSize &size);
+    void resize(const QSize &size, const QSize &framebufferSize);
 
     void addAnnotationIcon(const QString &name, const QImage &sprite);
 
@@ -202,6 +188,9 @@ public:
     void addSource(const QString &sourceID, const QVariantMap& params);
     void removeSource(const QString &sourceID);
 
+    void addImage(const QString &name, const QImage &sprite);
+    void removeImage(const QString &name);
+
     void addCustomLayer(const QString &id,
         QMapbox::CustomLayerInitializeFunction,
         QMapbox::CustomLayerRenderFunction,
@@ -214,19 +203,21 @@ public:
     void setFilter(const QString &layer, const QVariant &filter);
 
 public slots:
+#if QT_VERSION >= 0x050000
+    void render(QOpenGLFramebufferObject *fbo = NULL);
+#else
     void render();
+#endif
     void connectionEstablished();
 
 signals:
     void needsRendering();
-    void mapChanged(QMapboxGL::MapChange);
+    void mapChanged(QMapbox::MapChange);
 
 private:
     Q_DISABLE_COPY(QMapboxGL)
 
     QMapboxGLPrivate *d_ptr;
 };
-
-Q_DECLARE_METATYPE(QMapboxGL::MapChange);
 
 #endif // QMAPBOXGL_H

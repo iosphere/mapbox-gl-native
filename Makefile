@@ -52,7 +52,7 @@ endif
 
 .NOTPARALLEL: node_modules
 node_modules: package.json
-	npm update # Install dependencies but don't run our own install script.
+	npm install --ignore-scripts # Install dependencies but don't run our own install script.
 
 BUILD_DEPS += .mason/mason
 BUILD_DEPS += Makefile
@@ -88,6 +88,7 @@ $(MACOS_PROJ_PATH): $(BUILD_DEPS) $(MACOS_USER_DATA_PATH)/WorkspaceSettings.xcse
 	@# Create Xcode schemes so that we can use xcodebuild from the command line. CMake doesn't
 	@# create these automatically.
 	SCHEME_NAME=mbgl-test SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
+	SCHEME_NAME=mbgl-benchmark SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
 	SCHEME_NAME=mbgl-render SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
 	SCHEME_NAME=mbgl-offline SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
 	SCHEME_NAME=mbgl-glfw SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
@@ -116,6 +117,10 @@ xproj: $(MACOS_PROJ_PATH)
 test: $(MACOS_PROJ_PATH)
 	set -o pipefail && $(MACOS_XCODEBUILD) -scheme 'mbgl-test' build $(XCPRETTY)
 
+.PHONY: benchmark
+benchmark: $(MACOS_PROJ_PATH)
+	set -o pipefail && $(MACOS_XCODEBUILD) -scheme 'mbgl-benchmark' build $(XCPRETTY)
+
 .PHONY: run-test
 run-test: run-test-*
 
@@ -123,6 +128,12 @@ run-test-%: test
 	ulimit -c unlimited && ($(MACOS_OUTPUT_PATH)/$(BUILDTYPE)/mbgl-test --gtest_catch_exceptions=0 --gtest_filter=$* & pid=$$! && wait $$pid \
 	  || (lldb -c /cores/core.$$pid --batch --one-line 'thread backtrace all' --one-line 'quit' && exit 1))
 	set -o pipefail && $(MACOS_XCODEBUILD) -scheme 'CI' test $(XCPRETTY)
+
+.PHONY: run-benchmark
+run-benchmark: run-benchmark-.
+
+run-benchmark-%: benchmark
+	$(MACOS_OUTPUT_PATH)/$(BUILDTYPE)/mbgl-benchmark --benchmark_filter=$*
 
 .PHONY: glfw-app
 glfw-app: $(MACOS_PROJ_PATH)
@@ -143,6 +154,10 @@ offline: $(MACOS_PROJ_PATH)
 .PHONY: node
 node: $(MACOS_PROJ_PATH)
 	set -o pipefail && $(MACOS_XCODEBUILD) -scheme 'mbgl-node' build $(XCPRETTY)
+
+.PHONY: macos-test
+macos-test: $(MACOS_PROJ_PATH)
+	set -o pipefail && $(MACOS_XCODEBUILD) -scheme 'CI' test $(XCPRETTY)
 
 .PHONY: xpackage
 xpackage: $(MACOS_PROJ_PATH)
@@ -250,12 +265,18 @@ ifabric: $(IOS_PROJ_PATH)
 	FORMAT=static BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=NO SELF_CONTAINED=YES \
 	./platform/ios/scripts/package.sh
 
+.PHONY: ideploy
+ideploy:
+	caffeinate -i ./platform/ios/scripts/deploy-packages.sh
+
 .PHONY: idocument
 idocument:
 	OUTPUT=$(OUTPUT) ./platform/ios/scripts/document.sh
 
-style-code-darwin:
+.PHONY: darwin-style-code
+darwin-style-code:
 	node platform/darwin/scripts/generate-style-code.js
+style-code: darwin-style-code
 endif
 
 #### Linux targets #####################################################
@@ -272,7 +293,10 @@ $(LINUX_BUILD): $(BUILD_DEPS)
 		-DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		-DWITH_CXX11ABI=$(shell scripts/check-cxx11abi.sh) \
-		-DWITH_COVERAGE=${WITH_COVERAGE})
+		-DWITH_COVERAGE=${WITH_COVERAGE} \
+		-DIS_CI_BUILD=${CI} \
+		-DWITH_OSMESA=${WITH_OSMESA} \
+		-DWITH_EGL=${WITH_EGL})
 
 .PHONY: linux
 linux: glfw-app render offline
@@ -280,6 +304,10 @@ linux: glfw-app render offline
 .PHONY: test
 test: $(LINUX_BUILD)
 	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C $(LINUX_OUTPUT_PATH) mbgl-test
+
+.PHONY: benchmark
+benchmark: $(LINUX_BUILD)
+	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C $(LINUX_OUTPUT_PATH) mbgl-benchmark
 
 ifneq (,$(shell which gdb))
   GDB = gdb -batch -return-child-result -ex 'set print thread-events off' -ex 'run' -ex 'thread apply all bt' --args
@@ -290,6 +318,12 @@ run-test: run-test-*
 
 run-test-%: test
 	$(GDB) $(LINUX_OUTPUT_PATH)/mbgl-test --gtest_catch_exceptions=0 --gtest_filter=$*
+
+.PHONY: run-benchmark
+run-benchmark: run-benchmark-.
+
+run-benchmark-%: benchmark
+	$(LINUX_OUTPUT_PATH)/mbgl-benchmark --benchmark_filter=$*
 
 .PHONY: render
 render: $(LINUX_BUILD)
@@ -357,7 +391,8 @@ $(QT_BUILD): $(BUILD_DEPS)
 		-DWITH_QT_DECODERS=${WITH_QT_DECODERS} \
 		-DWITH_QT_4=${WITH_QT_4} \
 		-DWITH_CXX11ABI=$(shell scripts/check-cxx11abi.sh) \
-		-DWITH_COVERAGE=${WITH_COVERAGE})
+		-DWITH_COVERAGE=${WITH_COVERAGE} \
+		-DIS_CI_BUILD=${CI})
 
 ifeq ($(HOST_PLATFORM), macos)
 
@@ -371,13 +406,15 @@ $(MACOS_QT_PROJ_PATH): $(BUILD_DEPS)
 		-DWITH_QT_DECODERS=${WITH_QT_DECODERS} \
 		-DWITH_QT_4=${WITH_QT_4} \
 		-DWITH_CXX11ABI=$(shell scripts/check-cxx11abi.sh) \
-		-DWITH_COVERAGE=${WITH_COVERAGE})
+		-DWITH_COVERAGE=${WITH_COVERAGE} \
+		-DIS_CI_BUILD=${CI})
 
 	@# Create Xcode schemes so that we can use xcodebuild from the command line. CMake doesn't
 	@# create these automatically.
 	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-qt SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
 	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-qt-qml SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
 	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-test SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
+	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-benchmark SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
 	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-core SCHEME_TYPE=library BUILDABLE_NAME=libmbgl-core.a BLUEPRINT_NAME=mbgl-core platform/macos/scripts/create_scheme.sh
 	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=qmapboxgl SCHEME_TYPE=library BUILDABLE_NAME=libqmapboxgl.dylib BLUEPRINT_NAME=qmapboxgl platform/macos/scripts/create_scheme.sh
 
@@ -386,6 +423,10 @@ qtproj: $(MACOS_QT_PROJ_PATH)
 	open $(MACOS_QT_PROJ_PATH)
 
 endif
+
+.PHONY: qt-lib
+qt-lib: $(QT_BUILD)
+	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C $(QT_OUTPUT_PATH) qmapboxgl
 
 .PHONY: qt-app
 qt-app: $(QT_BUILD)
@@ -429,6 +470,11 @@ test-node: node
 ANDROID_ENV = platform/android/scripts/toolchain.sh
 ANDROID_ABIS = arm-v5 arm-v7 arm-v8 x86 x86-64 mips
 
+.PHONY: android-style-code
+android-style-code:
+	node platform/android/scripts/generate-style-code.js
+style-code: android-style-code
+
 define ANDROID_RULES
 
 build/android-$1/$(BUILDTYPE): $(BUILD_DEPS)
@@ -452,6 +498,10 @@ android-lib-$1: build/android-$1/$(BUILDTYPE)/Makefile
 android-$1: android-lib-$1
 	cd platform/android && ./gradlew --parallel --max-workers=$(JOBS) assemble$(BUILDTYPE)
 
+.PHONY: run-android-$1
+run-android-$1: android-$1
+	cd platform/android  && ./gradlew :MapboxGLAndroidSDKTestApp:installDebug && adb shell am start -n com.mapbox.mapboxsdk.testapp/.activity.FeatureOverviewActivity	
+
 apackage: android-lib-$1
 endef
 
@@ -460,25 +510,32 @@ $(foreach abi,$(ANDROID_ABIS),$(eval $(call ANDROID_RULES,$(abi))))
 .PHONY: android
 android: android-arm-v7
 
-.PHONY: android-test
-android-test:
-	cd platform/android && ./gradlew testReleaseUnitTest --continue
+.PHONY: run-android
+run-android: run-android-arm-v7
+	 
+.PHONY: run-android-unit-test
+run-android-unit-test:
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:testDebugUnitTest --continue
 
-.PHONY: android-test-apk
-android-test-apk:
-	cd platform/android && ./gradlew assembleDebug --continue && ./gradlew assembleAndroidTest --continue
+.PHONY: android-ui-test
+android-ui-test:
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:assembleDebug --continue && ./gradlew :MapboxGLAndroidSDKTestApp:assembleAndroidTest --continue
+
+.PHONY: run-android-ui-test
+run-android-ui-test:
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:connectedAndroidTest -i	
 
 .PHONY: apackage
 apackage:
 	cd platform/android && ./gradlew --parallel-threads=$(JOBS) assemble$(BUILDTYPE)
 
-.PHONY: style-code-android
-style-code-android:
-	node platform/android/scripts/generate-style-code.js
-
-.PHONY: android-generate-test
-android-generate-test:
+.PHONY: test-code-android
+test-code-android:
 	node platform/android/scripts/generate-test-code.js
+
+.PHONY: android-ndk-stack
+android-ndk-stack:
+	adb logcat | ndk-stack -sym build/android-arm-v7/Debug	
 
 #### Miscellaneous targets #####################################################
 
@@ -491,6 +548,8 @@ clean:
 	-rm -rf ./build \
 	        ./platform/android/MapboxGLAndroidSDK/build \
 	        ./platform/android/MapboxGLAndroidSDKTestApp/build \
+	        ./platform/android/MapboxGLAndroidSDKWearTestApp/build \
+	        ./platform/android/MapboxGLAndroidSDKTestApp/src/androidTest/java/com/mapbox/mapboxsdk/testapp/activity/gen \
 	        ./platform/android/MapboxGLAndroidSDK/src/main/jniLibs \
 	        ./platform/android/MapboxGLAndroidSDKTestApp/src/main/jniLibs \
 	        ./platform/android/MapboxGLAndroidSDK/src/main/assets

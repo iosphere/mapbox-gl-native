@@ -7,15 +7,12 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.VectorDrawable;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.support.annotation.ColorInt;
 import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.graphics.drawable.VectorDrawableCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.AttributeSet;
 import android.view.Gravity;
@@ -47,18 +44,19 @@ public class MapboxMapOptions implements Parcelable {
     private boolean debugActive;
 
     private boolean compassEnabled = true;
+    private boolean fadeCompassFacingNorth = true;
     private int compassGravity = Gravity.TOP | Gravity.END;
-    private int compassMargins[];
+    private int[] compassMargins;
 
     private boolean logoEnabled = true;
     private int logoGravity = Gravity.BOTTOM | Gravity.START;
-    private int logoMargins[];
+    private int[] logoMargins;
 
     @ColorInt
     private int attributionTintColor = -1;
     private boolean attributionEnabled = true;
     private int attributionGravity = Gravity.BOTTOM;
-    private int attributionMargins[];
+    private int[] attributionMargins;
 
     private float minZoom = MapboxConstants.MINIMUM_ZOOM;
     private float maxZoom = MapboxConstants.MAXIMUM_ZOOM;
@@ -79,6 +77,11 @@ public class MapboxMapOptions implements Parcelable {
     private int myLocationAccuracyTintColor;
     private int myLocationAccuracyAlpha;
 
+    private String apiBaseUrl;
+
+    @Deprecated
+    private boolean textureMode;
+
     private String style;
     @Deprecated
     private String accessToken;
@@ -96,6 +99,7 @@ public class MapboxMapOptions implements Parcelable {
         compassEnabled = in.readByte() != 0;
         compassGravity = in.readInt();
         compassMargins = in.createIntArray();
+        fadeCompassFacingNorth = in.readByte() != 0;
 
         logoEnabled = in.readByte() != 0;
         logoGravity = in.readInt();
@@ -123,12 +127,12 @@ public class MapboxMapOptions implements Parcelable {
         }
 
         Bitmap foregroundBearingBitmap = in.readParcelable(getClass().getClassLoader());
-        if(foregroundBearingBitmap!=null) {
+        if (foregroundBearingBitmap != null) {
             myLocationForegroundBearingDrawable = new BitmapDrawable(foregroundBearingBitmap);
         }
 
         Bitmap backgroundBitmap = in.readParcelable(getClass().getClassLoader());
-        if(backgroundBitmap!=null){
+        if (backgroundBitmap != null) {
             myLocationBackgroundDrawable = new BitmapDrawable(backgroundBitmap);
         }
 
@@ -140,6 +144,8 @@ public class MapboxMapOptions implements Parcelable {
 
         style = in.readString();
         accessToken = in.readString();
+        apiBaseUrl = in.readString();
+        textureMode = in.readByte() != 0;
     }
 
     public static Bitmap getBitmapFromDrawable(Drawable drawable) {
@@ -164,77 +170,89 @@ public class MapboxMapOptions implements Parcelable {
     public static MapboxMapOptions createFromAttributes(@NonNull Context context, @Nullable AttributeSet attrs) {
         MapboxMapOptions mapboxMapOptions = new MapboxMapOptions();
         float screenDensity = context.getResources().getDisplayMetrics().density;
-        TypedArray typedArray = context.obtainStyledAttributes(attrs, R.styleable.MapView, 0, 0);
+        TypedArray typedArray = context.obtainStyledAttributes(attrs, R.styleable.mapbox_MapView, 0, 0);
         try {
-            mapboxMapOptions.debugActive(typedArray.getBoolean(R.styleable.MapView_debug_active, false));
-
             mapboxMapOptions.camera(new CameraPosition.Builder(typedArray).build());
 
-            mapboxMapOptions.accessToken(typedArray.getString(R.styleable.MapView_access_token));
-            mapboxMapOptions.styleUrl(typedArray.getString(R.styleable.MapView_style_url));
+            mapboxMapOptions.accessToken(typedArray.getString(R.styleable.mapbox_MapView_mapbox_accessToken));
+            mapboxMapOptions.styleUrl(typedArray.getString(R.styleable.mapbox_MapView_mapbox_styleUrl));
+            mapboxMapOptions.apiBaseUrl(typedArray.getString(R.styleable.mapbox_MapView_mapbox_apiBaseUrl));
 
-            mapboxMapOptions.zoomGesturesEnabled(typedArray.getBoolean(R.styleable.MapView_zoom_enabled, true));
-            mapboxMapOptions.scrollGesturesEnabled(typedArray.getBoolean(R.styleable.MapView_scroll_enabled, true));
-            mapboxMapOptions.rotateGesturesEnabled(typedArray.getBoolean(R.styleable.MapView_rotate_enabled, true));
-            mapboxMapOptions.tiltGesturesEnabled(typedArray.getBoolean(R.styleable.MapView_tilt_enabled, true));
-            mapboxMapOptions.zoomControlsEnabled(typedArray.getBoolean(R.styleable.MapView_zoom_controls_enabled, false));
+            mapboxMapOptions.zoomGesturesEnabled(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiZoomGestures, true));
+            mapboxMapOptions.scrollGesturesEnabled(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiScrollGestures, true));
+            mapboxMapOptions.rotateGesturesEnabled(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiRotateGestures, true));
+            mapboxMapOptions.tiltGesturesEnabled(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiTiltGestures, true));
+            mapboxMapOptions.zoomControlsEnabled(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiZoomControls, false));
 
-            mapboxMapOptions.maxZoom(typedArray.getFloat(R.styleable.MapView_zoom_max, MapboxConstants.MAXIMUM_ZOOM));
-            mapboxMapOptions.minZoom(typedArray.getFloat(R.styleable.MapView_zoom_min, MapboxConstants.MINIMUM_ZOOM));
+            mapboxMapOptions.maxZoom(typedArray.getFloat(R.styleable.mapbox_MapView_mapbox_cameraZoomMax, MapboxConstants.MAXIMUM_ZOOM));
+            mapboxMapOptions.minZoom(typedArray.getFloat(R.styleable.mapbox_MapView_mapbox_cameraZoomMin, MapboxConstants.MINIMUM_ZOOM));
 
-            mapboxMapOptions.compassEnabled(typedArray.getBoolean(R.styleable.MapView_compass_enabled, true));
-            mapboxMapOptions.compassGravity(typedArray.getInt(R.styleable.MapView_compass_gravity, Gravity.TOP | Gravity.END));
-            mapboxMapOptions.compassMargins(new int[]{(int) (typedArray.getDimension(R.styleable.MapView_compass_margin_left, DIMENSION_TEN_DP) * screenDensity)
-                    , ((int) typedArray.getDimension(R.styleable.MapView_compass_margin_top, DIMENSION_TEN_DP * screenDensity))
-                    , ((int) typedArray.getDimension(R.styleable.MapView_compass_margin_right, DIMENSION_TEN_DP * screenDensity))
-                    , ((int) typedArray.getDimension(R.styleable.MapView_compass_margin_bottom, DIMENSION_TEN_DP * screenDensity))});
+            mapboxMapOptions.compassEnabled(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiCompass, true));
+            mapboxMapOptions.compassGravity(typedArray.getInt(R.styleable.mapbox_MapView_mapbox_uiCompassGravity, Gravity.TOP | Gravity.END));
+            mapboxMapOptions.compassMargins(new int[]{(int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiCompassMarginLeft, DIMENSION_TEN_DP) * screenDensity)
+                    , ((int) typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiCompassMarginTop, DIMENSION_TEN_DP * screenDensity))
+                    , ((int) typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiCompassMarginRight, DIMENSION_TEN_DP * screenDensity))
+                    , ((int) typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiCompassMarginBottom, DIMENSION_TEN_DP * screenDensity))});
+            mapboxMapOptions.compassFadesWhenFacingNorth(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiCompassFadeFacingNorth, true));
 
-            mapboxMapOptions.logoEnabled(typedArray.getBoolean(R.styleable.MapView_logo_enabled, true));
-            mapboxMapOptions.logoGravity(typedArray.getInt(R.styleable.MapView_logo_gravity, Gravity.BOTTOM | Gravity.START));
-            mapboxMapOptions.logoMargins(new int[]{(int) (typedArray.getDimension(R.styleable.MapView_logo_margin_left, DIMENSION_SIXTEEN_DP) * screenDensity)
-                    , (int) (typedArray.getDimension(R.styleable.MapView_logo_margin_top, DIMENSION_SIXTEEN_DP) * screenDensity)
-                    , (int) (typedArray.getDimension(R.styleable.MapView_logo_margin_right, DIMENSION_SIXTEEN_DP) * screenDensity)
-                    , (int) (typedArray.getDimension(R.styleable.MapView_logo_margin_bottom, DIMENSION_SIXTEEN_DP) * screenDensity)});
+            mapboxMapOptions.logoEnabled(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiLogo, true));
+            mapboxMapOptions.logoGravity(typedArray.getInt(R.styleable.mapbox_MapView_mapbox_uiLogoGravity, Gravity.BOTTOM | Gravity.START));
+            mapboxMapOptions.logoMargins(new int[]{(int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiLogoMarginLeft, DIMENSION_SIXTEEN_DP) * screenDensity)
+                    , (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiLogoMarginTop, DIMENSION_SIXTEEN_DP) * screenDensity)
+                    , (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiLogoMarginRight, DIMENSION_SIXTEEN_DP) * screenDensity)
+                    , (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiLogoMarginBottom, DIMENSION_SIXTEEN_DP) * screenDensity)});
 
-            mapboxMapOptions.attributionTintColor(typedArray.getColor(R.styleable.MapView_attribution_tint, -1));
-            mapboxMapOptions.attributionEnabled(typedArray.getBoolean(R.styleable.MapView_attribution_enabled, true));
-            mapboxMapOptions.attributionGravity(typedArray.getInt(R.styleable.MapView_attribution_gravity, Gravity.BOTTOM));
-            mapboxMapOptions.attributionMargins(new int[]{(int) (typedArray.getDimension(R.styleable.MapView_attribution_margin_left, DIMENSION_SEVENTY_SIX_DP) * screenDensity)
-                    , (int) (typedArray.getDimension(R.styleable.MapView_attribution_margin_top, DIMENSION_SEVEN_DP) * screenDensity)
-                    , (int) (typedArray.getDimension(R.styleable.MapView_attribution_margin_right, DIMENSION_SEVEN_DP) * screenDensity)
-                    , (int) (typedArray.getDimension(R.styleable.MapView_attribution_margin_bottom, DIMENSION_SEVEN_DP) * screenDensity)});
+            mapboxMapOptions.attributionTintColor(typedArray.getColor(R.styleable.mapbox_MapView_mapbox_uiAttributionTintColor, -1));
+            mapboxMapOptions.attributionEnabled(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiAttribution, true));
+            mapboxMapOptions.attributionGravity(typedArray.getInt(R.styleable.mapbox_MapView_mapbox_uiAttributionGravity, Gravity.BOTTOM));
+            mapboxMapOptions.attributionMargins(new int[]{(int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiAttributionMarginLeft, DIMENSION_SEVENTY_SIX_DP) * screenDensity)
+                    , (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiAttributionMarginTop, DIMENSION_SEVEN_DP) * screenDensity)
+                    , (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiAttributionMarginRight, DIMENSION_SEVEN_DP) * screenDensity)
+                    , (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiAttributionMarginBottom, DIMENSION_SEVEN_DP) * screenDensity)});
 
-            mapboxMapOptions.locationEnabled(typedArray.getBoolean(R.styleable.MapView_my_location_enabled, false));
-            mapboxMapOptions.myLocationForegroundTintColor(typedArray.getColor(R.styleable.MapView_my_location_foreground_tint, Color.TRANSPARENT));
-            mapboxMapOptions.myLocationBackgroundTintColor(typedArray.getColor(R.styleable.MapView_my_location_background_tint, Color.TRANSPARENT));
+            mapboxMapOptions.locationEnabled(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_myLocation, false));
+            mapboxMapOptions.myLocationForegroundTintColor(typedArray.getColor(R.styleable.mapbox_MapView_mapbox_myLocationTintColor, Color.TRANSPARENT));
+            mapboxMapOptions.myLocationBackgroundTintColor(typedArray.getColor(R.styleable.mapbox_MapView_mapbox_myLocationBackgroundTintColor, Color.TRANSPARENT));
 
-            Drawable foregroundDrawable = typedArray.getDrawable(R.styleable.MapView_my_location_foreground);
+            Drawable foregroundDrawable = typedArray.getDrawable(R.styleable.mapbox_MapView_mapbox_myLocationDrawable);
             if (foregroundDrawable == null) {
-                foregroundDrawable = ContextCompat.getDrawable(context, R.drawable.ic_mylocationview_normal);
+                foregroundDrawable = ContextCompat.getDrawable(context, R.drawable.mapbox_mylocation_icon_default);
             }
 
-            Drawable foregroundBearingDrawable = typedArray.getDrawable(R.styleable.MapView_my_location_foreground_bearing);
+            Drawable foregroundBearingDrawable = typedArray.getDrawable(R.styleable.mapbox_MapView_mapbox_myLocationBearingDrawable);
             if (foregroundBearingDrawable == null) {
-                foregroundBearingDrawable = ContextCompat.getDrawable(context, R.drawable.ic_mylocationview_bearing);
+                foregroundBearingDrawable = ContextCompat.getDrawable(context, R.drawable.mapbox_mylocation_icon_bearing);
             }
 
-            Drawable backgroundDrawable = typedArray.getDrawable(R.styleable.MapView_my_location_background);
+            Drawable backgroundDrawable = typedArray.getDrawable(R.styleable.mapbox_MapView_mapbox_myLocationBackgroundDrawable);
             if (backgroundDrawable == null) {
-                backgroundDrawable = ContextCompat.getDrawable(context, R.drawable.ic_mylocationview_background);
+                backgroundDrawable = ContextCompat.getDrawable(context, R.drawable.mapbox_mylocation_bg_shape);
             }
 
             mapboxMapOptions.myLocationForegroundDrawables(foregroundDrawable, foregroundBearingDrawable);
             mapboxMapOptions.myLocationBackgroundDrawable(backgroundDrawable);
-            mapboxMapOptions.myLocationBackgroundPadding(new int[]{(int) (typedArray.getDimension(R.styleable.MapView_my_location_background_left, 0) * screenDensity)
-                    , (int) (typedArray.getDimension(R.styleable.MapView_my_location_background_top, 0) * screenDensity)
-                    , (int) (typedArray.getDimension(R.styleable.MapView_my_location_background_right, 0) * screenDensity)
-                    , (int) (typedArray.getDimension(R.styleable.MapView_my_location_background_bottom, 0) * screenDensity)});
-            mapboxMapOptions.myLocationAccuracyAlpha(typedArray.getInt(R.styleable.MapView_my_location_accuracy_alpha, 100));
-            mapboxMapOptions.myLocationAccuracyTint(typedArray.getColor(R.styleable.MapView_my_location_accuracy_tint, ColorUtils.getPrimaryColor(context)));
+            mapboxMapOptions.myLocationBackgroundPadding(new int[]{(int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_myLocationBackgroundMarginLeft, 0) * screenDensity)
+                    , (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_myLocationBackgroundMarginTop, 0) * screenDensity)
+                    , (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_myLocationBackgroundMarginRight, 0) * screenDensity)
+                    , (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_myLocationBackgroundMarginBottom, 0) * screenDensity)});
+            mapboxMapOptions.myLocationAccuracyAlpha(typedArray.getInt(R.styleable.mapbox_MapView_mapbox_myLocationAccuracyAlpha, 100));
+            mapboxMapOptions.myLocationAccuracyTint(typedArray.getColor(R.styleable.mapbox_MapView_mapbox_myLocationAccuracyTintColor, ColorUtils.getPrimaryColor(context)));
+            mapboxMapOptions.textureMode(typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_renderTextureMode, false));
         } finally {
             typedArray.recycle();
         }
         return mapboxMapOptions;
+    }
+
+    /**
+     * Specifies the URL used for API endpoint.
+     *
+     * @param apiBaseUrl The base of our API endpoint
+     * @return This
+     */
+    public MapboxMapOptions apiBaseUrl(String apiBaseUrl) {
+        this.apiBaseUrl = apiBaseUrl;
+        return this;
     }
 
     /**
@@ -309,9 +327,9 @@ public class MapboxMapOptions implements Parcelable {
     }
 
     /**
-     * Specifies the visibility state of a compass for a map view.
+     * Specifies the visibility state of a mapbox_compass_icon for a map view.
      *
-     * @param enabled True and compass is shown
+     * @param enabled True and mapbox_compass_icon is shown
      * @return This
      */
     public MapboxMapOptions compassEnabled(boolean enabled) {
@@ -320,7 +338,7 @@ public class MapboxMapOptions implements Parcelable {
     }
 
     /**
-     * Specifies the gravity state of compass for a map view.
+     * Specifies the gravity state of mapbox_compass_icon for a map view.
      *
      * @param gravity see {@link android.view.Gravity}
      * @return This
@@ -331,13 +349,27 @@ public class MapboxMapOptions implements Parcelable {
     }
 
     /**
-     * Specifies the margin state of compass for a map view
+     * Specifies the margin state of mapbox_compass_icon for a map view
      *
      * @param margins 4 long array for LTRB margins
      * @return This
      */
     public MapboxMapOptions compassMargins(int[] margins) {
         compassMargins = margins;
+        return this;
+    }
+
+    /**
+     * Specifies if the mapbox_compass_icon fades to invisible when facing north.
+     * <p>
+     * By default this value is true.
+     * </p>
+     *
+     * @param compassFadeWhenFacingNorth true is mapbox_compass_icon fades to invisble
+     * @return This
+     */
+    public MapboxMapOptions compassFadesWhenFacingNorth(boolean compassFadeWhenFacingNorth) {
+        this.fadeCompassFacingNorth = compassFadeWhenFacingNorth;
         return this;
     }
 
@@ -584,6 +616,31 @@ public class MapboxMapOptions implements Parcelable {
     }
 
     /**
+     * Enable TextureView as rendered surface.
+     * <p>
+     * Since the 4.2.0 release we replaced our TextureView with an SurfaceView implemenation.
+     * Enabling this option will use the deprecated TextureView instead.
+     * </p>
+     *
+     * @param textureMode True to enable texture mode
+     * @return This
+     * @deprecated As of the 4.2.0 release, using TextureView is deprecated.
+     */
+    public MapboxMapOptions textureMode(boolean textureMode) {
+        this.textureMode = textureMode;
+        return this;
+    }
+
+    /**
+     * Get the current configured API endpoint base URL.
+     *
+     * @return Base URL to be used API endpoint.
+     */
+    public String getApiBaseUrl() {
+        return apiBaseUrl;
+    }
+
+    /**
      * Get the current configured initial camera position for a map view.
      *
      * @return CameraPosition to be initially used.
@@ -611,36 +668,45 @@ public class MapboxMapOptions implements Parcelable {
     }
 
     /**
-     * Get the current configured visibility state for compass for a map view.
+     * Get the current configured visibility state for mapbox_compass_icon for a map view.
      *
-     * @return Visibility state of the compass
+     * @return Visibility state of the mapbox_compass_icon
      */
     public boolean getCompassEnabled() {
         return compassEnabled;
     }
 
     /**
-     * Get the current configured gravity state for compass for a map view.
+     * Get the current configured gravity state for mapbox_compass_icon for a map view.
      *
-     * @return Gravity state of the compass
+     * @return Gravity state of the mapbox_compass_icon
      */
     public int getCompassGravity() {
         return compassGravity;
     }
 
     /**
-     * Get the current configured margins for compass for a map view.
+     * Get the current configured margins for mapbox_compass_icon for a map view.
      *
-     * @return Margins state of the compass
+     * @return Margins state of the mapbox_compass_icon
      */
     public int[] getCompassMargins() {
         return compassMargins;
     }
 
     /**
-     * Get the current configured visibility state for compass for a map view.
+     * Get the current configured state for fading the mapbox_compass_icon when facing north.
      *
-     * @return Visibility state of the compass
+     * @return True if mapbox_compass_icon fades to invisible when facing north
+     */
+    public boolean getCompassFadeFacingNorth() {
+        return fadeCompassFacingNorth;
+    }
+
+    /**
+     * Get the current configured visibility state for mapbox_compass_icon for a map view.
+     *
+     * @return Visibility state of the mapbox_compass_icon
      */
     public boolean getLogoEnabled() {
         return logoEnabled;
@@ -858,6 +924,16 @@ public class MapboxMapOptions implements Parcelable {
         return debugActive;
     }
 
+    /**
+     * Returns true if TextureView is being used a render view.
+     *
+     * @return True if TextureView is used.
+     * @deprecated As of the 4.2.0 release, using TextureView is deprecated.
+     */
+    public boolean getTextureMode() {
+        return textureMode;
+    }
+
     public static final Parcelable.Creator<MapboxMapOptions> CREATOR
             = new Parcelable.Creator<MapboxMapOptions>() {
         public MapboxMapOptions createFromParcel(Parcel in) {
@@ -882,6 +958,7 @@ public class MapboxMapOptions implements Parcelable {
         dest.writeByte((byte) (compassEnabled ? 1 : 0));
         dest.writeInt(compassGravity);
         dest.writeIntArray(compassMargins);
+        dest.writeByte((byte) (fadeCompassFacingNorth ? 1 : 0));
 
         dest.writeByte((byte) (logoEnabled ? 1 : 0));
         dest.writeInt(logoGravity);
@@ -914,6 +991,8 @@ public class MapboxMapOptions implements Parcelable {
 
         dest.writeString(style);
         dest.writeString(accessToken);
+        dest.writeString(apiBaseUrl);
+        dest.writeByte((byte) (textureMode ? 1 : 0));
     }
 
     @Override
@@ -925,6 +1004,7 @@ public class MapboxMapOptions implements Parcelable {
 
         if (debugActive != options.debugActive) return false;
         if (compassEnabled != options.compassEnabled) return false;
+        if (fadeCompassFacingNorth != options.fadeCompassFacingNorth) return false;
         if (compassGravity != options.compassGravity) return false;
         if (logoEnabled != options.logoEnabled) return false;
         if (logoGravity != options.logoGravity) return false;
@@ -957,6 +1037,8 @@ public class MapboxMapOptions implements Parcelable {
         if (!Arrays.equals(myLocationBackgroundPadding, options.myLocationBackgroundPadding))
             return false;
         if (style != null ? !style.equals(options.style) : options.style != null) return false;
+        if (apiBaseUrl != null ? !apiBaseUrl.equals(options.apiBaseUrl) : options.apiBaseUrl != null)
+            return false;
         return accessToken != null ? accessToken.equals(options.accessToken) : options.accessToken == null;
 
     }
@@ -966,6 +1048,7 @@ public class MapboxMapOptions implements Parcelable {
         int result = cameraPosition != null ? cameraPosition.hashCode() : 0;
         result = 31 * result + (debugActive ? 1 : 0);
         result = 31 * result + (compassEnabled ? 1 : 0);
+        result = 31 * result + (fadeCompassFacingNorth ? 1 : 0);
         result = 31 * result + compassGravity;
         result = 31 * result + Arrays.hashCode(compassMargins);
         result = 31 * result + (logoEnabled ? 1 : 0);
@@ -993,6 +1076,7 @@ public class MapboxMapOptions implements Parcelable {
         result = 31 * result + myLocationAccuracyAlpha;
         result = 31 * result + (style != null ? style.hashCode() : 0);
         result = 31 * result + (accessToken != null ? accessToken.hashCode() : 0);
+        result = 31 * result + (apiBaseUrl != null ? apiBaseUrl.hashCode() : 0);
         return result;
     }
 }

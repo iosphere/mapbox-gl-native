@@ -79,10 +79,13 @@ public class MapboxMapTest {
     @Mock
     MapboxMap.OnMyBearingTrackingModeChangeListener mMyBearingTrackingModeChangeListener;
 
+    @Mock
+    IconManager iconManager;
+
     @Before
     public void beforeTest() {
         MockitoAnnotations.initMocks(this);
-        mMapboxMap = new MapboxMap(mMapView);
+        mMapboxMap = new MapboxMap(mMapView, iconManager);
     }
 
     @Test
@@ -590,10 +593,10 @@ public class MapboxMapTest {
         MarkerOptions markerOptions2 = new MarkerOptions().position(new LatLng()).title("b");
         markerList.add(markerOptions1);
         markerList.add(markerOptions2);
-        mMapboxMap.addMarkers(markerList);
+        List<Marker> markers = mMapboxMap.addMarkers(markerList);
         assertEquals("Markers size should be 2", 2, mMapboxMap.getMarkers().size());
-        assertTrue(mMapboxMap.getMarkers().contains(markerOptions1.getMarker()));
-        assertTrue(mMapboxMap.getMarkers().contains(markerOptions2.getMarker()));
+        assertTrue(mMapboxMap.getMarkers().contains(markers.get(0)));
+        assertTrue(mMapboxMap.getMarkers().contains(markers.get(1)));
     }
 
     @Test
@@ -608,9 +611,9 @@ public class MapboxMapTest {
         List<BaseMarkerOptions> markerList = new ArrayList<>();
         MarkerOptions markerOptions = new MarkerOptions().title("a").position(new LatLng());
         markerList.add(markerOptions);
-        mMapboxMap.addMarkers(markerList);
+        List<Marker> markers = mMapboxMap.addMarkers(markerList);
         assertEquals("Markers size should be 1", 1, mMapboxMap.getMarkers().size());
-        assertTrue(mMapboxMap.getMarkers().contains(markerOptions.getMarker()));
+        assertTrue(mMapboxMap.getMarkers().contains(markers.get(0)));
     }
 
     @Test

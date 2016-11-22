@@ -147,19 +147,18 @@ std::vector<UnwrappedTileID> tileCover(const LatLngBounds& bounds_, int32_t z) {
         { std::max(bounds_.south(), -util::LATITUDE_MAX), bounds_.west() },
         { std::min(bounds_.north(),  util::LATITUDE_MAX), bounds_.east() });
 
-    const TransformState state;
     return tileCover(
-        TileCoordinate::fromLatLng(state, z, bounds.northwest()).p,
-        TileCoordinate::fromLatLng(state, z, bounds.northeast()).p,
-        TileCoordinate::fromLatLng(state, z, bounds.southeast()).p,
-        TileCoordinate::fromLatLng(state, z, bounds.southwest()).p,
-        TileCoordinate::fromLatLng(state, z, bounds.center()).p,
+        TileCoordinate::fromLatLng(z, bounds.northwest()).p,
+        TileCoordinate::fromLatLng(z, bounds.northeast()).p,
+        TileCoordinate::fromLatLng(z, bounds.southeast()).p,
+        TileCoordinate::fromLatLng(z, bounds.southwest()).p,
+        TileCoordinate::fromLatLng(z, bounds.center()).p,
         z);
 }
 
 std::vector<UnwrappedTileID> tileCover(const TransformState& state, int32_t z) {
-    const double w = state.getWidth();
-    const double h = state.getHeight();
+    const double w = state.getSize().width;
+    const double h = state.getSize().height;
     return tileCover(
         TileCoordinate::fromScreenCoordinate(state, z, { 0,   0   }).p,
         TileCoordinate::fromScreenCoordinate(state, z, { w,   0   }).p,

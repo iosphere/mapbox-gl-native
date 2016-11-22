@@ -1,15 +1,8 @@
 # Contributing to the Android SDK on macOS
 
-Install Oracle JDK 7+ and Android Studio:
+## Install JDK 7+ and Android Studio:
 
-    brew tap caskroom/cask
-    brew install brew-cask
-    brew cask install java
-
-    brew cask install android-studio
-
-You can [download Android Studio instead of installing it with Homebrew, but you'll still need to `brew install java`](https://developer.android.com/sdk/index.html)
-for it to work.
+ Android Studio requires the Java Development Kit (JDK) which you can [download here](http://www.oracle.com/technetwork/java/javase/downloads/index.html). Once the JDK is installed, you can grab the [latest version of Android Studio here](https://developer.android.com/sdk/index.html) and install it following the on screen instructions.  
 
 Once Android Studio is installed, the [first time it's run it'll ask to install the Android SDK](http://developer.android.com/sdk/installing/index.html?pkg=studio) which you should do.  While doing so in the Android SDK Manager make sure to also select and install the latest versions of "Android Support Repository" and "Android Support Library" from "Extras":
 
@@ -46,6 +39,15 @@ export ANDROID_HOME=/<installation location>/android-sdk-macosx
 This environment variable configuration should go into a file that's read on
 your shell's startup, like `~/.profile`.
 
+## Speeding up gradle builds
+
+To optimise you development machine for faster gradle builds create the following `/Users/name/.gradle/gradle.properties`  file:
+
+```
+org.gradle.daemon=true
+org.gradle.jvmargs=-Xmx3072M
+```
+
 ## Running The TestApp
 
 In order to run the TestApp on an emulator or device the Core GL portion needs to built first.  Core GL is the common C++ based OpenGL engine that powers the maps for iOS, Android, and Qt in the project.  To build it, open Terminal and run the following commands from the root of the `mapbox-gl-native` source code
@@ -57,11 +59,11 @@ Run:
     // Makes arm7 ABI version of Core GL
     // Can be run on most Android phones and arm emulator
     make android
-    
+
     // Make x86 version of Core GL
     // Useful for running faster Anroid x86 emulator on Macs
     make android-lib-x86
 
 Once Core GL has been built, the TestApp can be run by selecting `MapboxGLAndroidSDKTestApp` from the Run menu or toolbar in Android Studio.
 
-**Next: get your app [running on a hardware Android Device](docs/ANDROID_DEVICE.md) or [simulator](docs/ANDROID_SIMULATOR.md)**
+**Next: get your app [running on a hardware Android Device](platform/android/README.md#running-mapbox-gl-native-on-a-hardware-android-device) or [simulator](platform/android/README.md#setting-up-the-android-emulator)**

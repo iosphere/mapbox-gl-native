@@ -9,7 +9,9 @@ import android.support.annotation.NonNull;
 import static com.mapbox.mapboxsdk.utils.ColorUtils.*;
 
 /**
- * Background Layer
+ * The background color or pattern of the map.
+ *
+ * @see <a href="https://www.mapbox.com/mapbox-gl-style-spec/#layers-background">The online documentation</a>
  */
 public class BackgroundLayer extends Layer {
 
@@ -53,7 +55,6 @@ public class BackgroundLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getBackgroundColor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetBackgroundColor());
     }
      /**
@@ -64,7 +65,6 @@ public class BackgroundLayer extends Layer {
      */
     @ColorInt
     public int getBackgroundColorAsInt() {
-        checkValidity();
         PropertyValue<String> value = getBackgroundColor();
         if (value.isValue()) {
             return rgbaToColor(value.getValue());
@@ -81,7 +81,6 @@ public class BackgroundLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getBackgroundPattern() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetBackgroundPattern());
     }
  
@@ -92,7 +91,6 @@ public class BackgroundLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getBackgroundOpacity() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetBackgroundOpacity());
     }
  

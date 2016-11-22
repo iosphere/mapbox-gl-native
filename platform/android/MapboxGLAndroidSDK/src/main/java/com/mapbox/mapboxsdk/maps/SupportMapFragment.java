@@ -35,8 +35,8 @@ import com.mapbox.mapboxsdk.exceptions.InvalidAccessTokenException;
  */
 public class SupportMapFragment extends Fragment {
 
-    private MapView mMap;
-    private OnMapReadyCallback mOnMapReadyCallback;
+    private MapView map;
+    private OnMapReadyCallback onMapReadyCallback;
 
     /**
      * Creates a MapFragment instance
@@ -103,19 +103,19 @@ public class SupportMapFragment extends Fragment {
         Drawable foregroundBearingDrawable = options.getMyLocationForegroundBearingDrawable();
         if (foregroundDrawable == null || foregroundBearingDrawable == null) {
             if (foregroundDrawable == null) {
-                foregroundDrawable = ContextCompat.getDrawable(context, R.drawable.ic_mylocationview_normal);
+                foregroundDrawable = ContextCompat.getDrawable(context, R.drawable.mapbox_mylocation_icon_default);
             }
             if (foregroundBearingDrawable == null) {
-                foregroundBearingDrawable = ContextCompat.getDrawable(context, R.drawable.ic_mylocationview_bearing);
+                foregroundBearingDrawable = ContextCompat.getDrawable(context, R.drawable.mapbox_mylocation_icon_bearing);
             }
             options.myLocationForegroundDrawables(foregroundDrawable, foregroundBearingDrawable);
         }
 
         if (options.getMyLocationBackgroundDrawable() == null) {
-            options.myLocationBackgroundDrawable(ContextCompat.getDrawable(context, R.drawable.ic_mylocationview_background));
+            options.myLocationBackgroundDrawable(ContextCompat.getDrawable(context, R.drawable.mapbox_mylocation_bg_shape));
         }
 
-        return mMap = new MapView(inflater.getContext(), options);
+        return map = new MapView(inflater.getContext(), options);
     }
 
     /**
@@ -142,7 +142,7 @@ public class SupportMapFragment extends Fragment {
                 throw new IllegalArgumentException();
             }
             return token;
-        } catch (Exception e) {
+        } catch (Exception exception) {
             // use fallback on string resource, used for development
             int tokenResId = context.getResources().getIdentifier("mapbox_access_token", "string", context.getPackageName());
             return tokenResId != 0 ? context.getString(tokenResId) : null;
@@ -158,7 +158,7 @@ public class SupportMapFragment extends Fragment {
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        mMap.onCreate(savedInstanceState);
+        map.onCreate(savedInstanceState);
     }
 
     /**
@@ -167,7 +167,8 @@ public class SupportMapFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
-        mMap.getMapAsync(mOnMapReadyCallback);
+        map.onStart();
+        map.getMapAsync(onMapReadyCallback);
     }
 
     /**
@@ -176,7 +177,7 @@ public class SupportMapFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        mMap.onResume();
+        map.onResume();
     }
 
     /**
@@ -185,7 +186,7 @@ public class SupportMapFragment extends Fragment {
     @Override
     public void onPause() {
         super.onPause();
-        mMap.onPause();
+        map.onPause();
     }
 
     /**
@@ -196,7 +197,7 @@ public class SupportMapFragment extends Fragment {
     @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
-        mMap.onSaveInstanceState(outState);
+        map.onSaveInstanceState(outState);
     }
 
     /**
@@ -205,6 +206,7 @@ public class SupportMapFragment extends Fragment {
     @Override
     public void onStop() {
         super.onStop();
+        map.onStop();
     }
 
     /**
@@ -213,7 +215,7 @@ public class SupportMapFragment extends Fragment {
     @Override
     public void onLowMemory() {
         super.onLowMemory();
-        mMap.onLowMemory();
+        map.onLowMemory();
     }
 
     /**
@@ -222,7 +224,7 @@ public class SupportMapFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        mMap.onDestroy();
+        map.onDestroy();
     }
 
     /**
@@ -231,6 +233,6 @@ public class SupportMapFragment extends Fragment {
      * @param onMapReadyCallback The callback to be invoked.
      */
     public void getMapAsync(@NonNull final OnMapReadyCallback onMapReadyCallback) {
-        mOnMapReadyCallback = onMapReadyCallback;
+        this.onMapReadyCallback = onMapReadyCallback;
     }
 }

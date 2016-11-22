@@ -3,31 +3,77 @@ package com.mapbox.mapboxsdk.style.sources;
 import java.net.URL;
 
 /**
- * Construct a Raster Source.
+ * Raster Source enables the use of raster tiles.
  *
- * @see <a href="https://www.mapbox.com/mapbox-gl-style-spec/#sources-raster">The style specificition</a>
+ * @see <a href="https://www.mapbox.com/mapbox-gl-style-spec/#sources-raster">The style specification</a>
  */
 public class RasterSource extends Source {
-    public static final String TYPE = "raster";
-    private static final String URL_KEY = "url";
-    private static final String TILE_SIZE_KEY = "tileSize";
+    public static final int DEFAULT_TILE_SIZE = 512;
 
+    /**
+     * Internal use
+     *
+     * @param nativePtr - pointer to native peer
+     */
+    public RasterSource(long nativePtr) {
+        super(nativePtr);
+    }
+
+    /**
+     * Create the raster source from an URL
+     *
+     * @param id  the source id
+     * @param url the source url
+     */
     public RasterSource(String id, URL url) {
         this(id, url.toExternalForm());
     }
 
+
+    /**
+     * Create the raster source from an URL
+     *
+     * @param id  the source id
+     * @param url the source url
+     */
     public RasterSource(String id, String url) {
-        super(id, TYPE);
-        this.put(URL_KEY, url);
+        initialize(id, url, DEFAULT_TILE_SIZE);
     }
 
+    /**
+     * Create the raster source from an URL with a specific tile size
+     *
+     * @param id       the source id
+     * @param url      the source url
+     * @param tileSize the tile size
+     */
+    public RasterSource(String id, String url, int tileSize) {
+        initialize(id, url, tileSize);
+    }
+
+    /**
+     * Create the raster source from a {@link TileSet}
+     *
+     * @param id      the source id
+     * @param tileSet the {@link TileSet}
+     */
     public RasterSource(String id, TileSet tileSet) {
-        super(id, TYPE);
-        this.putAll(tileSet.toValueObject());
+        initialize(id, tileSet.toValueObject(), DEFAULT_TILE_SIZE);
     }
 
-    public RasterSource withTileSize(int tileSize) {
-        this.put(TILE_SIZE_KEY, (float) tileSize);
-        return this;
+    /**
+     * Create the raster source from a {@link TileSet} with a specific tile size
+     *
+     * @param id       the source id
+     * @param tileSet  the {@link TileSet}
+     * @param tileSize tje tile size
+     */
+    public RasterSource(String id, TileSet tileSet, int tileSize) {
+        initialize(id, tileSet.toValueObject(), tileSize);
     }
+
+    protected native void initialize(String layerId, Object payload, int tileSize);
+
+    @Override
+    protected native void finalize() throws Throwable;
 }

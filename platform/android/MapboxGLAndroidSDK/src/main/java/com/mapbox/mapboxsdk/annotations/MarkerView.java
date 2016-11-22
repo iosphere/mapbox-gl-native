@@ -1,18 +1,11 @@
 package com.mapbox.mapboxsdk.annotations;
 
-import android.animation.AnimatorSet;
-import android.graphics.Bitmap;
-import android.graphics.PointF;
 import android.support.annotation.FloatRange;
-import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.view.View;
-import android.view.animation.AnimationUtils;
 
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.utils.AnimatorUtils;
 
 /**
  * MarkerView is an annotation that shows an View at a geographical location.
@@ -28,11 +21,14 @@ public class MarkerView extends Marker {
 
     private MarkerViewManager markerViewManager;
 
+    private float width;
+    private float height;
+
     private float anchorU;
     private float anchorV;
 
-    private float offsetX = -1;
-    private float offsetY = -1;
+    private float offsetX = MapboxConstants.UNMEASURED;
+    private float offsetY = MapboxConstants.UNMEASURED;
 
     private float infoWindowAnchorU;
     private float infoWindowAnchorV;
@@ -47,6 +43,7 @@ public class MarkerView extends Marker {
     private Icon markerViewIcon;
 
     private boolean selected;
+
 
     /**
      * Publicly hidden default constructor
@@ -69,6 +66,22 @@ public class MarkerView extends Marker {
         this.flat = baseMarkerViewOptions.isFlat();
         this.rotation = baseMarkerViewOptions.getRotation();
         this.selected = baseMarkerViewOptions.selected;
+    }
+
+    float getWidth() {
+        return width;
+    }
+
+    void setWidth(float width) {
+        this.width = width;
+    }
+
+    float getHeight() {
+        return height;
+    }
+
+    void setHeight(float height) {
+        this.height = height;
     }
 
     /**
@@ -231,7 +244,10 @@ public class MarkerView extends Marker {
     }
 
     /**
-     * Set the rotation value of the MarkerView.
+     * Set the rotation value of the MarkerView in degrees.
+     * <p>
+     * Input will be limited to 0 - 360 degrees
+     * </p>
      * <p>
      * This will result in animating the rotation of the MarkerView using an rotation animator
      * from current value to the provided parameter value.
@@ -240,9 +256,18 @@ public class MarkerView extends Marker {
      * @param rotation the rotation value to animate to
      */
     public void setRotation(float rotation) {
-        this.rotation = rotation;
+        // limit to 0 - 360 degrees
+        float newRotation = rotation;
+        while (newRotation > 360) {
+            newRotation -= 360;
+        }
+        while (newRotation < 0) {
+            newRotation += 360;
+        }
+
+        this.rotation = newRotation;
         if (markerViewManager != null) {
-            markerViewManager.animateRotation(this, rotation);
+            markerViewManager.animateRotationBy(this, newRotation);
         }
     }
 
@@ -288,10 +313,10 @@ public class MarkerView extends Marker {
     @Override
     public void setIcon(@Nullable Icon icon) {
         if (icon != null) {
-            markerViewIcon = IconFactory.recreate("icon", icon.getBitmap());
+            markerViewIcon = IconFactory.recreate(IconFactory.ICON_MARKERVIEW_ID, icon.getBitmap());
         }
-        Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
-        Icon transparentIcon = IconFactory.recreate("markerViewSettings", bitmap);
+        Icon transparentIcon = IconFactory.recreate(IconFactory.ICON_MARKERVIEW_ID,
+                IconFactory.ICON_MARKERVIEW_BITMAP);
         if (markerViewManager != null) {
             markerViewManager.updateIcon(this);
         }
@@ -332,19 +357,23 @@ public class MarkerView extends Marker {
      * <p>
      * This method is used to instantiate the MarkerView and provide an instance of {@link com.mapbox.mapboxsdk.maps.MapboxMap.MarkerViewAdapter}
      * </p>
+     * <p>
+     * This method is used to notify that a MarkerView is no longer active by setting a null value.
+     * </p>
      *
      * @param mapboxMap the MapboxMap instances
      */
     @Override
     public void setMapboxMap(MapboxMap mapboxMap) {
         super.setMapboxMap(mapboxMap);
+        if(mapboxMap!=null) {
+            if (isFlat()) {
+                // initial tilt value if MapboxMap is started with a tilt attribute
+                tiltValue = (float) mapboxMap.getCameraPosition().tilt;
+            }
 
-        if(isFlat()) {
-            // initial tilt value if MapboxMap is started with a tilt attribute
-            tiltValue = (float) mapboxMap.getCameraPosition().tilt;
+            markerViewManager = mapboxMap.getMarkerViewManager();
         }
-
-        markerViewManager = mapboxMap.getMarkerViewManager();
     }
 
     /**

@@ -6,14 +6,14 @@
 namespace mbgl {
 namespace style {
 
-class CalculationParameters;
+class PropertyEvaluationParameters;
 
 template <typename T>
 class PropertyEvaluator {
 public:
     using ResultType = T;
 
-    PropertyEvaluator(const CalculationParameters& parameters_, T defaultValue_)
+    PropertyEvaluator(const PropertyEvaluationParameters& parameters_, T defaultValue_)
         : parameters(parameters_),
           defaultValue(std::move(defaultValue_)) {}
 
@@ -22,12 +22,13 @@ public:
     T operator()(const Function<T>&) const;
 
 private:
-    const CalculationParameters& parameters;
+    const PropertyEvaluationParameters& parameters;
     T defaultValue;
 };
 
 template <typename T>
-struct Faded {
+class Faded {
+public:
     T from;
     T to;
     float fromScale;
@@ -40,7 +41,7 @@ class CrossFadedPropertyEvaluator {
 public:
     using ResultType = Faded<T>;
 
-    CrossFadedPropertyEvaluator(const CalculationParameters& parameters_, T defaultValue_)
+    CrossFadedPropertyEvaluator(const PropertyEvaluationParameters& parameters_, T defaultValue_)
         : parameters(parameters_),
           defaultValue(std::move(defaultValue_)) {}
 
@@ -51,7 +52,7 @@ public:
 private:
     Faded<T> calculate(const T& min, const T& mid, const T& max) const;
 
-    const CalculationParameters& parameters;
+    const PropertyEvaluationParameters& parameters;
     T defaultValue;
 };
 

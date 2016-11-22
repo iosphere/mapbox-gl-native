@@ -30,6 +30,7 @@ custom_categories:
       - MGLMultiPolygon
       - MGLMultiPolyline
       - MGLPointAnnotation
+      - MGLPointCollection
       - MGLPolygon
       - MGLPolyline
       - MGLOverlay
@@ -37,14 +38,32 @@ custom_categories:
       - MGLShapeCollection
   - name: Map Data
     children:
-      - MGLFeature
-      - MGLMultiPointFeature
+      - MGLFeature      
       - MGLMultiPolygonFeature
       - MGLMultiPolylineFeature
-      - MGLPointFeature
+      - MGLPointCollectionFeature
+      - MGLPointFeature      
       - MGLPolygonFeature
       - MGLPolylineFeature
       - MGLShapeCollectionFeature
+  - name: Style Layers
+    children:
+      - MGLBackgroundStyleLayer
+      - MGLCircleStyleLayer
+      - MGLFillStyleLayer
+      - MGLForegroundStyleLayer
+      - MGLLineStyleLayer
+      - MGLRasterStyleLayer
+      - MGLStyleLayer
+      - MGLSymbolStyleLayer
+      - MGLVectorStyleLayer
+  - name: Data Sources
+    children:
+      - MGLSource
+      - MGLGeoJSONSource
+      - MGLRasterSource
+      - MGLTileSet
+      - MGLVectorSource
   - name: Offline Maps
     children:
       - MGLOfflineRegion

@@ -1,12 +1,14 @@
+add_definitions(-DMBGL_USE_GLES2=1)
+
 #Include to use build specific variables
 include(${CMAKE_CURRENT_BINARY_DIR}/toolchain.cmake)
 
 mason_use(jni.hpp VERSION 2.0.0 HEADER_ONLY)
-mason_use(libjpeg-turbo VERSION 1.4.2)
-mason_use(libpng VERSION 1.6.20)
-mason_use(libzip VERSION 0.11.2)
-mason_use(nunicode VERSION 1.6)
-mason_use(sqlite VERSION 3.9.1)
+mason_use(libjpeg-turbo VERSION 1.5.0)
+mason_use(libpng VERSION 1.6.25)
+mason_use(libzip VERSION 1.1.3)
+mason_use(nunicode VERSION 1.7.1)
+mason_use(sqlite VERSION 3.14.2)
 
 macro(mbgl_platform_core)
 
@@ -19,9 +21,10 @@ macro(mbgl_platform_core)
         PRIVATE platform/android/src/timer.cpp
 
         # File source
-        PRIVATE platform/android/src/http_file_source.cpp
         PRIVATE platform/android/src/asset_file_source.cpp
+        PRIVATE platform/android/src/http_file_source.cpp
         PRIVATE platform/default/default_file_source.cpp
+        PRIVATE platform/default/local_file_source.cpp
         PRIVATE platform/default/online_file_source.cpp
 
         # Offline
@@ -45,6 +48,9 @@ macro(mbgl_platform_core)
 
         # Headless view
         # TODO
+
+        # Thread pool
+        PRIVATE platform/default/thread_pool.cpp
     )
 
     target_include_directories(mbgl-core
@@ -61,6 +67,8 @@ macro(mbgl_platform_core)
 
     target_compile_options(mbgl-core
         PRIVATE -fvisibility=hidden
+        PRIVATE -ffunction-sections
+        PRIVATE -fdata-sections
         PRIVATE -Os
     )
 
@@ -72,6 +80,7 @@ macro(mbgl_platform_core)
         PUBLIC -lstdc++
         PUBLIC -latomic
         PUBLIC -lz
+        PUBLIC -Wl,--gc-sections
     )
 endmacro()
 
@@ -86,9 +95,10 @@ add_library(mapbox-gl SHARED
 
     # Style conversion Java -> C++
     platform/android/src/style/android_conversion.hpp
-    platform/android/src/style/android_geojson.hpp
+    platform/android/src/style/conversion/geojson.hpp
     platform/android/src/style/value.cpp
     platform/android/src/style/value.hpp
+    platform/android/src/style/conversion/url_or_tileset.hpp
 
     # Style
     platform/android/src/style/layers/background_layer.cpp
@@ -109,12 +119,24 @@ add_library(mapbox-gl SHARED
     platform/android/src/style/layers/raster_layer.hpp
     platform/android/src/style/layers/symbol_layer.cpp
     platform/android/src/style/layers/symbol_layer.hpp
+    platform/android/src/style/sources/geojson_source.cpp
+    platform/android/src/style/sources/geojson_source.hpp
+    platform/android/src/style/sources/source.cpp
+    platform/android/src/style/sources/source.hpp
     platform/android/src/style/sources/sources.cpp
     platform/android/src/style/sources/sources.hpp
+    platform/android/src/style/sources/raster_source.cpp
+    platform/android/src/style/sources/raster_source.hpp
+    platform/android/src/style/sources/vector_source.cpp
+    platform/android/src/style/sources/vector_source.hpp
 
     # Native map
     platform/android/src/native_map_view.cpp
     platform/android/src/native_map_view.hpp
+
+    # Connectivity
+    platform/android/src/connectivity_listener.cpp
+    platform/android/src/connectivity_listener.hpp
 
     # Main jni bindings
     platform/android/src/jni.cpp
@@ -129,11 +151,14 @@ target_add_mason_package(mapbox-gl PUBLIC rapidjson)
 
 target_compile_options(mapbox-gl
     PRIVATE -fvisibility=hidden
+    PRIVATE -ffunction-sections
+    PRIVATE -fdata-sections
     PRIVATE -Os
 )
 
 target_link_libraries(mapbox-gl
     PUBLIC mbgl-core
+    PUBLIC -Wl,--gc-sections
 )
 
 add_library(example-custom-layer SHARED
@@ -142,11 +167,14 @@ add_library(example-custom-layer SHARED
 
 target_compile_options(example-custom-layer
     PRIVATE -fvisibility=hidden
+    PRIVATE -ffunction-sections
+    PRIVATE -fdata-sections
     PRIVATE -Os
 )
 
 target_link_libraries(example-custom-layer
     PRIVATE mbgl-core
+    PUBLIC -Wl,--gc-sections
 )
 
 set(ANDROID_SDK_PROJECT_DIR ${CMAKE_SOURCE_DIR}/platform/android/MapboxGLAndroidSDK)

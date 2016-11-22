@@ -1,20 +1,59 @@
-mason_use(glfw VERSION 3.1.2)
+mason_use(glfw VERSION 3.2.1)
+if(IS_CI_BUILD AND NOT WITH_EGL)
+    mason_use(mesa VERSION 13.0.0${MASON_MESA_SUFFIX}${MASON_CXXABI_SUFFIX})
+endif()
 mason_use(boost_libprogram_options VERSION 1.60.0)
-mason_use(sqlite VERSION 3.9.1)
-mason_use(libuv VERSION 1.7.5)
-mason_use(nunicode VERSION 1.6)
-mason_use(libpng VERSION 1.6.20)
-mason_use(libjpeg-turbo VERSION 1.4.2)
-mason_use(webp VERSION 0.5.0)
+mason_use(sqlite VERSION 3.14.2)
+mason_use(libuv VERSION 1.9.1)
+mason_use(nunicode VERSION 1.7.1)
+mason_use(libpng VERSION 1.6.25)
+mason_use(libjpeg-turbo VERSION 1.5.0)
+mason_use(webp VERSION 0.5.1)
 mason_use(gtest VERSION 1.7.0${MASON_CXXABI_SUFFIX})
+mason_use(benchmark VERSION 1.0.0)
 
 include(cmake/loop-uv.cmake)
 
 macro(mbgl_platform_core)
+    if(WITH_OSMESA)
+        target_sources(mbgl-core
+            PRIVATE platform/default/headless_backend_osmesa.cpp
+            PRIVATE platform/default/headless_display.cpp
+        )
+        target_add_mason_package(mbgl-core PUBLIC mesa)
+    elseif(WITH_EGL)
+        target_sources(mbgl-core
+            PRIVATE platform/linux/src/headless_backend_egl.cpp
+            PRIVATE platform/linux/src/headless_display_egl.cpp
+        )
+        # TODO: Provide surface-less EGL mesa for CI builds.
+        # https://github.com/mapbox/mapbox-gl-native/issues/7020
+        target_link_libraries(mbgl-core
+            PUBLIC -lGLESv2
+            PUBLIC -lEGL
+            PUBLIC -lgbm
+        )
+    else()
+        target_sources(mbgl-core
+            PRIVATE platform/linux/src/headless_backend_glx.cpp
+            PRIVATE platform/linux/src/headless_display_glx.cpp
+        )
+        if (IS_CI_BUILD)
+            target_add_mason_package(mbgl-core PUBLIC mesa)
+            target_link_libraries(mbgl-core PUBLIC -lX11)
+        else()
+            target_link_libraries(mbgl-core
+                PUBLIC -lGL
+                PUBLIC -lX11
+            )
+        endif()
+    endif()
+
     target_sources(mbgl-core
         # File source
         PRIVATE platform/default/asset_file_source.cpp
         PRIVATE platform/default/default_file_source.cpp
+        PRIVATE platform/default/local_file_source.cpp
         PRIVATE platform/default/http_file_source.cpp
         PRIVATE platform/default/online_file_source.cpp
 
@@ -39,9 +78,11 @@ macro(mbgl_platform_core)
         PRIVATE platform/default/webp_reader.cpp
 
         # Headless view
-        PRIVATE platform/default/headless_display.cpp
-        PRIVATE platform/default/headless_view.cpp
-        PRIVATE platform/default/headless_view_glx.cpp
+        PRIVATE platform/default/headless_backend.cpp
+        PRIVATE platform/default/offscreen_view.cpp
+
+        # Thread pool
+        PRIVATE platform/default/thread_pool.cpp
     )
 
     target_include_directories(mbgl-core
@@ -57,8 +98,6 @@ macro(mbgl_platform_core)
     target_link_libraries(mbgl-core
         PUBLIC -lz
         PUBLIC -lcurl
-        PUBLIC -lGL
-        PUBLIC -lX11
     )
 endmacro()
 
@@ -96,6 +135,23 @@ macro(mbgl_platform_test)
     )
 
     target_link_libraries(mbgl-test
+        PRIVATE mbgl-loop
+    )
+endmacro()
+
+
+macro(mbgl_platform_benchmark)
+    target_sources(mbgl-benchmark
+        PRIVATE benchmark/src/main.cpp
+    )
+
+    set_source_files_properties(
+        benchmark/src/main.cpp
+            PROPERTIES
+        COMPILE_FLAGS -DWORK_DIRECTORY="${CMAKE_SOURCE_DIR}"
+    )
+
+    target_link_libraries(mbgl-benchmark
         PRIVATE mbgl-loop
     )
 endmacro()

@@ -13,7 +13,6 @@ import android.view.MenuItem;
 import android.view.View;
 
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
-import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
@@ -68,8 +67,11 @@ public class CircleLayerActivity extends AppCompatActivity {
                             // first time
                             try {
                                 mapboxMap.addSource(new GeoJsonSource("point", new URL("https://gist.githubusercontent.com/anonymous/87eca90e80a72b1b42be9d0201ec3c8e/raw/acbb46384fd56044a504f122950d0637d98b4e7a/map.geojson")));
-                            } catch (MalformedURLException e) {
-                                Log.e(MapboxConstants.TAG, "That's not an url... " + e.getMessage());
+                            } catch (MalformedURLException malformedUrlException) {
+                                Log.e(
+                                    MapboxConstants.TAG,
+                                    "That's not an url... " + malformedUrlException.getMessage()
+                                );
                             }
 
                             circleLayer = new CircleLayer("circleLayer", "point");
@@ -82,10 +84,13 @@ public class CircleLayerActivity extends AppCompatActivity {
                             mapboxMap.addLayer(circleLayer, "waterway-label");
                         } else {
                             // change size and color
-                            circleLayer = mapboxMap.getLayer("circleLayer");
                             circleLayer.setProperties(
-                                    circleRadius(mapView.getTag() == null ? getResources().getDimension(R.dimen.activity_horizontal_margin) : getResources().getDimension(R.dimen.circle_size)),
-                                    circleColor(mapView.getTag() == null ? ResourcesCompat.getColor(getResources(), R.color.blue_accent, getTheme()) : ResourcesCompat.getColor(getResources(), R.color.green_accent, getTheme())));
+                                    circleRadius(mapView.getTag() == null
+                                        ? getResources().getDimension(R.dimen.activity_horizontal_margin)
+                                        : getResources().getDimension(R.dimen.circle_size)),
+                                    circleColor(mapView.getTag() == null ? ResourcesCompat.getColor(
+                                        getResources(), R.color.blue_accent, getTheme()) : ResourcesCompat.getColor(
+                                        getResources(), R.color.green_accent, getTheme())));
                             mapView.setTag(mapView.getTag() == null ? mapboxMap : null);
                         }
                     }
@@ -95,15 +100,27 @@ public class CircleLayerActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onResume() {
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
         super.onResume();
         mapView.onResume();
     }
 
     @Override
-    public void onPause() {
+    protected void onPause() {
         super.onPause();
         mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override

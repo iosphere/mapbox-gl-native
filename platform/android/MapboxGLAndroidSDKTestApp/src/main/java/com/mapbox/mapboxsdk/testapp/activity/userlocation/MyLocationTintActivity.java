@@ -18,12 +18,14 @@ import android.view.MenuItem;
 import android.view.View;
 
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
+import com.mapbox.mapboxsdk.constants.MyLocationTracking;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.location.LocationListener;
 import com.mapbox.mapboxsdk.location.LocationServices;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
+import com.mapbox.mapboxsdk.maps.TrackingSettings;
 import com.mapbox.mapboxsdk.maps.widgets.MyLocationViewSettings;
 import com.mapbox.mapboxsdk.testapp.R;
 
@@ -55,34 +57,58 @@ public class MyLocationTintActivity extends AppCompatActivity implements Locatio
             @Override
             public void onMapReady(MapboxMap map) {
                 mapboxMap = map;
+
+                // enable location updates
                 toggleGps(!mapboxMap.isMyLocationEnabled());
 
+                // add some padding
                 final MyLocationViewSettings myLocationViewSettings = mapboxMap.getMyLocationViewSettings();
+                myLocationViewSettings.setPadding(0, 500, 0, 0);
+
+                // enable tracking
+                TrackingSettings settings = mapboxMap.getTrackingSettings();
+                settings.setDismissLocationTrackingOnGesture(false);
+                settings.setMyLocationTrackingMode(MyLocationTracking.TRACKING_FOLLOW);
 
                 // handle default button clicks
-                ViewUtils.attachClickListener(MyLocationTintActivity.this, R.id.default_user_dot_coloring_button, new View.OnClickListener() {
+                ViewUtils.attachClickListener(
+                    MyLocationTintActivity.this,
+                    R.id.default_user_dot_coloring_button,
+                    new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        myLocationViewSettings.setAccuracyTintColor(ContextCompat.getColor(MyLocationTintActivity.this, R.color.my_location_ring));
-                        myLocationViewSettings.setForegroundTintColor(ContextCompat.getColor(MyLocationTintActivity.this, R.color.mapbox_blue));
+                        myLocationViewSettings.setAccuracyTintColor(ContextCompat.getColor(
+                            MyLocationTintActivity.this, R.color.mapbox_my_location_ring));
+                        myLocationViewSettings.setForegroundTintColor(ContextCompat.getColor(
+                            MyLocationTintActivity.this, R.color.mapbox_blue));
                     }
                 });
 
                 // handle tint user dot button clicks
-                ViewUtils.attachClickListener(MyLocationTintActivity.this, R.id.tint_user_dot_button, new View.OnClickListener() {
+                ViewUtils.attachClickListener(
+                    MyLocationTintActivity.this,
+                    R.id.tint_user_dot_button,
+                    new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        myLocationViewSettings.setAccuracyTintColor(ContextCompat.getColor(MyLocationTintActivity.this, R.color.mapbox_green));
-                        myLocationViewSettings.setForegroundTintColor(ContextCompat.getColor(MyLocationTintActivity.this, R.color.mapbox_green));
+                        myLocationViewSettings.setAccuracyTintColor(
+                            ContextCompat.getColor(MyLocationTintActivity.this, R.color.mapbox_green));
+                        myLocationViewSettings.setForegroundTintColor(
+                            ContextCompat.getColor(MyLocationTintActivity.this, R.color.mapbox_green));
                     }
                 });
 
                 // handle tint accuracy ring button clicks
-                ViewUtils.attachClickListener(MyLocationTintActivity.this, R.id.user_accuracy_ring_tint_button, new View.OnClickListener() {
+                ViewUtils.attachClickListener(
+                    MyLocationTintActivity.this,
+                    R.id.user_accuracy_ring_tint_button,
+                    new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        myLocationViewSettings.setAccuracyTintColor(ContextCompat.getColor(MyLocationTintActivity.this, R.color.accent));
-                        myLocationViewSettings.setForegroundTintColor(ContextCompat.getColor(MyLocationTintActivity.this, R.color.mapbox_blue));
+                        myLocationViewSettings.setAccuracyTintColor(
+                            ContextCompat.getColor(MyLocationTintActivity.this, R.color.accent));
+                        myLocationViewSettings.setForegroundTintColor(
+                            ContextCompat.getColor(MyLocationTintActivity.this, R.color.mapbox_blue));
                     }
                 });
             }
@@ -101,6 +127,7 @@ public class MyLocationTintActivity extends AppCompatActivity implements Locatio
     @Override
     protected void onStart() {
         super.onStart();
+        mapView.onStart();
         LocationServices.getLocationServices(this).addLocationListener(this);
     }
 
@@ -120,6 +147,7 @@ public class MyLocationTintActivity extends AppCompatActivity implements Locatio
     protected void onStop() {
         super.onStop();
         LocationServices.getLocationServices(this).removeLocationListener(this);
+        mapView.onStop();
     }
 
     @Override
@@ -154,9 +182,13 @@ public class MyLocationTintActivity extends AppCompatActivity implements Locatio
     @UiThread
     public void toggleGps(boolean enableGps) {
         if (enableGps) {
-            if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) ||
-                    (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_LOCATION);
+            if ((ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+                || (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED)) {
+                ActivityCompat.requestPermissions(this, new String[]{
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_LOCATION);
             } else {
                 enableLocation(true);
             }
@@ -179,19 +211,18 @@ public class MyLocationTintActivity extends AppCompatActivity implements Locatio
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSIONS_LOCATION: {
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    enableLocation(true);
-                }
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == PERMISSIONS_LOCATION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                enableLocation(true);
             }
         }
     }
 
     private static class ViewUtils {
 
-        public static void attachClickListener(@NonNull Activity activity, @IdRes int buttonId, @Nullable View.OnClickListener clickListener) {
+        public static void attachClickListener(
+            @NonNull Activity activity, @IdRes int buttonId, @Nullable View.OnClickListener clickListener) {
             View view = activity.findViewById(buttonId);
             if (view != null) {
                 view.setOnClickListener(clickListener);

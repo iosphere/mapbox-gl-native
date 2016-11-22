@@ -1,162 +1,121 @@
 #include <mbgl/renderer/painter.hpp>
 #include <mbgl/renderer/debug_bucket.hpp>
 #include <mbgl/renderer/render_tile.hpp>
+#include <mbgl/renderer/paint_parameters.hpp>
+#include <mbgl/map/view.hpp>
 #include <mbgl/tile/tile.hpp>
-#include <mbgl/shader/shaders.hpp>
+#include <mbgl/programs/programs.hpp>
+#include <mbgl/programs/fill_program.hpp>
 #include <mbgl/util/string.hpp>
 #include <mbgl/gl/debugging.hpp>
-#include <mbgl/gl/gl.hpp>
-#include <mbgl/gl/gl_values.hpp>
-#include <mbgl/gl/gl_helper.hpp>
 #include <mbgl/util/color.hpp>
 
 namespace mbgl {
 
-void Painter::renderTileDebug(const RenderTile& tile) {
-    MBGL_DEBUG_GROUP(std::string { "debug " } + util::toString(tile.id));
-    if (frame.debugOptions != MapDebugOptions::NoDebug) {
-        setClipping(tile.clip);
-        if (frame.debugOptions & (MapDebugOptions::Timestamps | MapDebugOptions::ParseStatus)) {
-            renderDebugText(tile.tile, tile.matrix);
+void Painter::renderTileDebug(const RenderTile& renderTile) {
+    if (frame.debugOptions == MapDebugOptions::NoDebug)
+        return;
+
+    MBGL_DEBUG_GROUP(std::string { "debug " } + util::toString(renderTile.id));
+
+    auto draw = [&] (Color color, const auto& vertexBuffer, const auto& segments, auto drawMode) {
+        programs->debug.draw(
+            context,
+            drawMode,
+            gl::DepthMode::disabled(),
+            stencilModeForClipping(renderTile.clip),
+            gl::ColorMode::unblended(),
+            DebugProgram::UniformValues {
+                uniforms::u_matrix::Value{ renderTile.matrix },
+                uniforms::u_color::Value{ color }
+            },
+            vertexBuffer,
+            segments
+        );
+    };
+
+    if (frame.debugOptions & (MapDebugOptions::Timestamps | MapDebugOptions::ParseStatus)) {
+        Tile& tile = renderTile.tile;
+        if (!tile.debugBucket || tile.debugBucket->renderable != tile.isRenderable() ||
+            tile.debugBucket->complete != tile.isComplete() ||
+            !(tile.debugBucket->modified == tile.modified) ||
+            !(tile.debugBucket->expires == tile.expires) ||
+            tile.debugBucket->debugMode != frame.debugOptions) {
+            tile.debugBucket = std::make_unique<DebugBucket>(
+                tile.id, tile.isRenderable(), tile.isComplete(), tile.modified,
+                tile.expires, frame.debugOptions, context);
         }
-        if (frame.debugOptions & MapDebugOptions::TileBorders) {
-            renderDebugFrame(tile.matrix);
-        }
-    }
-}
 
-void Painter::renderDebugText(Tile& tile, const mat4 &matrix) {
-    MBGL_DEBUG_GROUP("debug text");
+        draw(Color::white(),
+             tile.debugBucket->vertexBuffer,
+             tile.debugBucket->segments,
+             gl::Lines { 4.0f * frame.pixelRatio });
 
-    config.depthTest = GL_FALSE;
-
-    if (!tile.debugBucket || tile.debugBucket->renderable != tile.isRenderable() ||
-        tile.debugBucket->complete != tile.isComplete() ||
-        !(tile.debugBucket->modified == tile.modified) ||
-        !(tile.debugBucket->expires == tile.expires) ||
-        tile.debugBucket->debugMode != frame.debugOptions) {
-        tile.debugBucket = std::make_unique<DebugBucket>(
-            tile.id, tile.isRenderable(), tile.isComplete(), tile.modified,
-            tile.expires, frame.debugOptions);
+        draw(Color::black(),
+             tile.debugBucket->vertexBuffer,
+             tile.debugBucket->segments,
+             gl::Lines { 2.0f * frame.pixelRatio });
     }
 
-    auto& plainShader = shaders->plain;
-    config.program = plainShader.getID();
-    plainShader.u_matrix = matrix;
-    plainShader.u_opacity = 1.0f;
-
-    // Draw white outline
-    plainShader.u_color = Color::white();
-    config.lineWidth = 4.0f * frame.pixelRatio;
-    tile.debugBucket->drawLines(plainShader, store);
-
-#ifndef GL_ES_VERSION_2_0
-    // Draw line "end caps"
-    MBGL_CHECK_ERROR(glPointSize(2));
-    tile.debugBucket->drawPoints(plainShader, store);
-#endif
-
-    // Draw black text.
-    plainShader.u_color = Color::black();
-    config.lineWidth = 2.0f * frame.pixelRatio;
-    tile.debugBucket->drawLines(plainShader, store);
-
-    config.depthFunc.reset();
-    config.depthTest = GL_TRUE;
-}
-
-void Painter::renderDebugFrame(const mat4 &matrix) {
-    MBGL_DEBUG_GROUP("debug frame");
-
-    // Disable depth test and don't count this towards the depth buffer,
-    // but *don't* disable stencil test, as we want to clip the red tile border
-    // to the tile viewport.
-    config.depthTest = GL_FALSE;
-    config.stencilOp.reset();
-    config.stencilTest = GL_TRUE;
-
-    auto& plainShader = shaders->plain;
-    config.program = plainShader.getID();
-    plainShader.u_matrix = matrix;
-    plainShader.u_opacity = 1.0f;
-
-    // draw tile outline
-    tileBorderArray.bind(plainShader, tileBorderBuffer, BUFFER_OFFSET_0, store);
-    plainShader.u_color = { 1.0f, 0.0f, 0.0f, 1.0f };
-    config.lineWidth = 4.0f * frame.pixelRatio;
-    MBGL_CHECK_ERROR(glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)tileBorderBuffer.index()));
+    if (frame.debugOptions & MapDebugOptions::TileBorders) {
+        draw(Color::red(),
+             tileBorderVertexBuffer,
+             tileBorderSegments,
+             gl::LineStrip { 4.0f * frame.pixelRatio });
+    }
 }
 
 #ifndef NDEBUG
-void Painter::renderClipMasks() {
-    config.stencilTest = GL_FALSE;
-    config.depthTest = GL_FALSE;
-    config.program = 0;
-    config.colorMask = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
+void Painter::renderClipMasks(PaintParameters&) {
+    context.setStencilMode(gl::StencilMode::disabled());
+    context.setDepthMode(gl::DepthMode::disabled());
+    context.setColorMode(gl::ColorMode::unblended());
+    context.program = 0;
 
-#ifndef GL_ES_VERSION_2_0
-    config.pixelZoom = { 1, 1 };
-    config.rasterPos = {{ -1, -1, 0, 0 }};
+#if not MBGL_USE_GLES2
+    // Reset the value in case someone else changed it, or it's dirty.
+    context.pixelTransferStencil = gl::value::PixelTransferStencil::Default;
 
     // Read the stencil buffer
-    const auto& fbSize = frame.framebufferSize;
-    auto pixels = std::make_unique<uint8_t[]>(fbSize[0] * fbSize[1]);
-    MBGL_CHECK_ERROR(glReadPixels(
-                0,                // GLint x
-                0,                // GLint y
-                fbSize[0],        // GLsizei width
-                fbSize[1],        // GLsizei height
-                GL_STENCIL_INDEX, // GLenum format
-                GL_UNSIGNED_BYTE, // GLenum type
-                pixels.get()      // GLvoid * data
-                ));
+    const auto viewport = context.viewport.getCurrentValue();
+    auto image =
+        context.readFramebuffer<AlphaImage, gl::TextureFormat::Stencil>(viewport.size, false);
 
     // Scale the Stencil buffer to cover the entire color space.
-    auto it = pixels.get();
-    auto end = it + fbSize[0] * fbSize[1];
+    auto it = image.data.get();
+    auto end = it + viewport.size.width * viewport.size.height;
     const auto factor = 255.0f / *std::max_element(it, end);
     for (; it != end; ++it) {
         *it *= factor;
     }
 
-    MBGL_CHECK_ERROR(glWindowPos2i(0, 0));
-    MBGL_CHECK_ERROR(glDrawPixels(fbSize[0], fbSize[1], GL_LUMINANCE, GL_UNSIGNED_BYTE, pixels.get()));
-#endif // GL_ES_VERSION_2_0
+    context.pixelZoom = { 1, 1 };
+    context.rasterPos = { -1, -1, 0, 1 };
+    context.drawPixels(image);
+#endif // MBGL_USE_GLES2
 }
-#endif // NDEBUG
 
-#ifndef NDEBUG
-void Painter::renderDepthBuffer() {
-    config.stencilTest = GL_FALSE;
-    config.depthTest = GL_FALSE;
-    config.program = 0;
-    config.colorMask = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
+void Painter::renderDepthBuffer(PaintParameters&) {
+    context.setStencilMode(gl::StencilMode::disabled());
+    context.setDepthMode(gl::DepthMode::disabled());
+    context.setColorMode(gl::ColorMode::unblended());
+    context.program = 0;
 
-#ifndef GL_ES_VERSION_2_0
-    config.pixelZoom = { 1, 1 };
-    config.rasterPos = {{ -1, -1, 0, 0 }};
+#if not MBGL_USE_GLES2
+    // Scales the values in the depth buffer so that they cover the entire grayscale range. This
+    // makes it easier to spot tiny differences.
+    const float base = 1.0f / (1.0f - depthRangeSize);
+    context.pixelTransferDepth = { base, 1.0f - base };
 
     // Read the stencil buffer
-    const auto& fbSize = frame.framebufferSize;
-    auto pixels = std::make_unique<GLubyte[]>(fbSize[0] * fbSize[1]);
+    auto viewport = context.viewport.getCurrentValue();
+    auto image =
+        context.readFramebuffer<AlphaImage, gl::TextureFormat::Depth>(viewport.size, false);
 
-    const double base = 1.0 / (1.0 - depthRangeSize);
-    glPixelTransferf(GL_DEPTH_SCALE, base);
-    glPixelTransferf(GL_DEPTH_BIAS, 1.0 - base);
-
-    MBGL_CHECK_ERROR(glReadPixels(
-                0,                  // GLint x
-                0,                  // GLint y
-                fbSize[0],          // GLsizei width
-                fbSize[1],          // GLsizei height
-                GL_DEPTH_COMPONENT, // GLenum format
-                GL_UNSIGNED_BYTE,   // GLenum type
-                pixels.get()        // GLvoid * data
-                ));
-
-    MBGL_CHECK_ERROR(glWindowPos2i(0, 0));
-    MBGL_CHECK_ERROR(glDrawPixels(fbSize[0], fbSize[1], GL_LUMINANCE, GL_UNSIGNED_BYTE, pixels.get()));
-#endif // GL_ES_VERSION_2_0
+    context.pixelZoom = { 1, 1 };
+    context.rasterPos = { -1, -1, 0, 1 };
+    context.drawPixels(image);
+#endif // MBGL_USE_GLES2
 }
 #endif // NDEBUG
 

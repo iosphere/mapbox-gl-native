@@ -9,7 +9,9 @@ import android.support.annotation.NonNull;
 import static com.mapbox.mapboxsdk.utils.ColorUtils.*;
 
 /**
- * Symbol Layer
+ * An icon or a text label.
+ *
+ * @see <a href="https://www.mapbox.com/mapbox-gl-style-spec/#layers-symbol">The online documentation</a>
  */
 public class SymbolLayer extends Layer {
 
@@ -34,13 +36,12 @@ public class SymbolLayer extends Layer {
 
     protected native void initialize(String layerId, String sourceId);
 
-   /**
+    /**
      * Set the source layer.
      *
      * @param sourceLayer the source layer to set
      */
     public void setSourceLayer(String sourceLayer) {
-        checkValidity();
         nativeSetSourceLayer(sourceLayer);
     }
 
@@ -60,7 +61,6 @@ public class SymbolLayer extends Layer {
      * @param filter the filter to set
      */
     public void setFilter(Filter.Statement filter) {
-        checkValidity();
         this.setFilter(filter.toArray());
     }
 
@@ -70,7 +70,6 @@ public class SymbolLayer extends Layer {
      * @param filter the filter array to set
      */
     public void setFilter(Object[] filter) {
-        checkValidity();
         nativeSetFilter(filter);
     }
 
@@ -117,7 +116,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getSymbolPlacement() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetSymbolPlacement());
     }
  
@@ -128,7 +126,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getSymbolSpacing() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetSymbolSpacing());
     }
  
@@ -139,7 +136,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getSymbolAvoidEdges() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetSymbolAvoidEdges());
     }
  
@@ -150,7 +146,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getIconAllowOverlap() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetIconAllowOverlap());
     }
  
@@ -161,7 +156,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getIconIgnorePlacement() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetIconIgnorePlacement());
     }
  
@@ -172,7 +166,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getIconOptional() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetIconOptional());
     }
  
@@ -183,7 +176,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getIconRotationAlignment() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetIconRotationAlignment());
     }
  
@@ -194,7 +186,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getIconSize() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetIconSize());
     }
  
@@ -205,7 +196,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getIconTextFit() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetIconTextFit());
     }
  
@@ -216,7 +206,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float[]> getIconTextFitPadding() {
-        checkValidity();
         return (PropertyValue<Float[]>) new PropertyValue(nativeGetIconTextFitPadding());
     }
  
@@ -227,7 +216,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getIconImage() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetIconImage());
     }
  
@@ -238,7 +226,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getIconRotate() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetIconRotate());
     }
  
@@ -249,7 +236,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getIconPadding() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetIconPadding());
     }
  
@@ -260,7 +246,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getIconKeepUpright() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetIconKeepUpright());
     }
  
@@ -271,7 +256,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float[]> getIconOffset() {
-        checkValidity();
         return (PropertyValue<Float[]>) new PropertyValue(nativeGetIconOffset());
     }
  
@@ -282,7 +266,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getTextPitchAlignment() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetTextPitchAlignment());
     }
  
@@ -293,7 +276,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getTextRotationAlignment() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetTextRotationAlignment());
     }
  
@@ -304,7 +286,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getTextField() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetTextField());
     }
  
@@ -315,7 +296,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String[]> getTextFont() {
-        checkValidity();
         return (PropertyValue<String[]>) new PropertyValue(nativeGetTextFont());
     }
  
@@ -326,7 +306,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextSize() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextSize());
     }
  
@@ -337,7 +316,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextMaxWidth() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextMaxWidth());
     }
  
@@ -348,7 +326,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextLineHeight() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextLineHeight());
     }
  
@@ -359,7 +336,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextLetterSpacing() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextLetterSpacing());
     }
  
@@ -370,7 +346,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getTextJustify() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetTextJustify());
     }
  
@@ -381,7 +356,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getTextAnchor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetTextAnchor());
     }
  
@@ -392,7 +366,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextMaxAngle() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextMaxAngle());
     }
  
@@ -403,7 +376,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextRotate() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextRotate());
     }
  
@@ -414,7 +386,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextPadding() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextPadding());
     }
  
@@ -425,7 +396,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getTextKeepUpright() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetTextKeepUpright());
     }
  
@@ -436,7 +406,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getTextTransform() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetTextTransform());
     }
  
@@ -447,7 +416,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float[]> getTextOffset() {
-        checkValidity();
         return (PropertyValue<Float[]>) new PropertyValue(nativeGetTextOffset());
     }
  
@@ -458,7 +426,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getTextAllowOverlap() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetTextAllowOverlap());
     }
  
@@ -469,7 +436,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getTextIgnorePlacement() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetTextIgnorePlacement());
     }
  
@@ -480,7 +446,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getTextOptional() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetTextOptional());
     }
  
@@ -491,7 +456,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getIconOpacity() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetIconOpacity());
     }
  
@@ -502,7 +466,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getIconColor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetIconColor());
     }
      /**
@@ -513,7 +476,6 @@ public class SymbolLayer extends Layer {
      */
     @ColorInt
     public int getIconColorAsInt() {
-        checkValidity();
         PropertyValue<String> value = getIconColor();
         if (value.isValue()) {
             return rgbaToColor(value.getValue());
@@ -530,18 +492,16 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getIconHaloColor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetIconHaloColor());
     }
      /**
-     * The color of the icon's halo. Icon halos can only be used with sdf icons.
+     * The color of the icon's halo. Icon halos can only be used with SDF icons.
      *
      * @return int representation of a rgba string color
      * @throws RuntimeException thrown if property isn't a value
      */
     @ColorInt
     public int getIconHaloColorAsInt() {
-        checkValidity();
         PropertyValue<String> value = getIconHaloColor();
         if (value.isValue()) {
             return rgbaToColor(value.getValue());
@@ -558,7 +518,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getIconHaloWidth() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetIconHaloWidth());
     }
  
@@ -569,7 +528,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getIconHaloBlur() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetIconHaloBlur());
     }
  
@@ -580,7 +538,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float[]> getIconTranslate() {
-        checkValidity();
         return (PropertyValue<Float[]>) new PropertyValue(nativeGetIconTranslate());
     }
  
@@ -591,7 +548,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getIconTranslateAnchor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetIconTranslateAnchor());
     }
  
@@ -602,7 +558,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextOpacity() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextOpacity());
     }
  
@@ -613,7 +568,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getTextColor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetTextColor());
     }
      /**
@@ -624,7 +578,6 @@ public class SymbolLayer extends Layer {
      */
     @ColorInt
     public int getTextColorAsInt() {
-        checkValidity();
         PropertyValue<String> value = getTextColor();
         if (value.isValue()) {
             return rgbaToColor(value.getValue());
@@ -641,7 +594,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getTextHaloColor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetTextHaloColor());
     }
      /**
@@ -652,7 +604,6 @@ public class SymbolLayer extends Layer {
      */
     @ColorInt
     public int getTextHaloColorAsInt() {
-        checkValidity();
         PropertyValue<String> value = getTextHaloColor();
         if (value.isValue()) {
             return rgbaToColor(value.getValue());
@@ -669,7 +620,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextHaloWidth() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextHaloWidth());
     }
  
@@ -680,7 +630,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getTextHaloBlur() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetTextHaloBlur());
     }
  
@@ -691,7 +640,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float[]> getTextTranslate() {
-        checkValidity();
         return (PropertyValue<Float[]>) new PropertyValue(nativeGetTextTranslate());
     }
  
@@ -702,7 +650,6 @@ public class SymbolLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getTextTranslateAnchor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetTextTranslateAnchor());
     }
  

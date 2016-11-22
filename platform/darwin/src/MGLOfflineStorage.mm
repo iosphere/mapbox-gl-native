@@ -2,6 +2,7 @@
 
 #import "MGLAccountManager_Private.h"
 #import "MGLGeometry_Private.h"
+#import "MGLNetworkConfiguration.h"
 #import "MGLOfflinePack_Private.h"
 #import "MGLOfflineRegion_Private.h"
 #import "MGLTilePyramidOfflineRegion.h"
@@ -12,14 +13,18 @@
 static NSString * const MGLOfflineStorageFileName = @"cache.db";
 static NSString * const MGLOfflineStorageFileName3_2_0_beta_1 = @"offline.db";
 
-NSString * const MGLOfflinePackProgressChangedNotification = @"MGLOfflinePackProgressChanged";
-NSString * const MGLOfflinePackErrorNotification = @"MGLOfflinePackError";
-NSString * const MGLOfflinePackMaximumMapboxTilesReachedNotification = @"MGLOfflinePackMaximumMapboxTilesReached";
+const NSNotificationName MGLOfflinePackProgressChangedNotification = @"MGLOfflinePackProgressChanged";
+const NSNotificationName MGLOfflinePackErrorNotification = @"MGLOfflinePackError";
+const NSNotificationName MGLOfflinePackMaximumMapboxTilesReachedNotification = @"MGLOfflinePackMaximumMapboxTilesReached";
 
-NSString * const MGLOfflinePackStateUserInfoKey = @"State";
-NSString * const MGLOfflinePackProgressUserInfoKey = @"Progress";
-NSString * const MGLOfflinePackErrorUserInfoKey = @"Error";
-NSString * const MGLOfflinePackMaximumCountUserInfoKey = @"MaximumCount";
+const MGLOfflinePackUserInfoKey MGLOfflinePackUserInfoKeyState = @"State";
+NSString * const MGLOfflinePackStateUserInfoKey = MGLOfflinePackUserInfoKeyState;
+const MGLOfflinePackUserInfoKey MGLOfflinePackUserInfoKeyProgress = @"Progress";
+NSString * const MGLOfflinePackProgressUserInfoKey = MGLOfflinePackUserInfoKeyProgress;
+const MGLOfflinePackUserInfoKey MGLOfflinePackUserInfoKeyError = @"Error";
+NSString * const MGLOfflinePackErrorUserInfoKey = MGLOfflinePackUserInfoKeyError;
+const MGLOfflinePackUserInfoKey MGLOfflinePackUserInfoKeyMaximumCount = @"MaximumCount";
+NSString * const MGLOfflinePackMaximumCountUserInfoKey = MGLOfflinePackUserInfoKeyMaximumCount;
 
 @interface MGLOfflineStorage () <MGLOfflinePackDelegate>
 
@@ -59,7 +64,7 @@ NSString * const MGLOfflinePackMaximumCountUserInfoKey = @"MaximumCount";
                                                              appropriateForURL:nil
                                                                         create:YES
                                                                          error:nil];
-    NSString *bundleIdentifier = [NSBundle mainBundle].bundleIdentifier;
+    NSString *bundleIdentifier = [self bundleIdentifier];
     if (!bundleIdentifier) {
         // There’s no main bundle identifier when running in a unit test bundle.
         bundleIdentifier = [NSBundle bundleForClass:self].bundleIdentifier;
@@ -93,7 +98,7 @@ NSString * const MGLOfflinePackMaximumCountUserInfoKey = @"MaximumCount";
     NSString *legacyCachePath = [legacyPaths.firstObject stringByAppendingPathComponent:MGLOfflineStorageFileName3_2_0_beta_1];
 #elif TARGET_OS_MAC
     // ~/Library/Caches/tld.app.bundle.id/offline.db
-    NSString *bundleIdentifier = [NSBundle mainBundle].bundleIdentifier;
+    NSString *bundleIdentifier = [self bundleIdentifier];
     NSURL *legacyCacheDirectoryURL = [[NSFileManager defaultManager] URLForDirectory:NSCachesDirectory
                                                                             inDomain:NSUserDomainMask
                                                                    appropriateForURL:nil
@@ -127,6 +132,13 @@ NSString * const MGLOfflinePackMaximumCountUserInfoKey = @"MaximumCount";
 
         _mbglFileSource = new mbgl::DefaultFileSource(cachePath.UTF8String, [NSBundle mainBundle].resourceURL.path.UTF8String);
 
+        // Observe for changes to the API base URL (and find out the current one).
+        [[MGLNetworkConfiguration sharedManager] addObserver:self
+                                                  forKeyPath:@"apiBaseURL"
+                                                     options:(NSKeyValueObservingOptionInitial |
+                                                              NSKeyValueObservingOptionNew)
+                                                     context:NULL];
+
         // Observe for changes to the global access token (and find out the current one).
         [[MGLAccountManager sharedManager] addObserver:self
                                             forKeyPath:@"accessToken"
@@ -137,7 +149,17 @@ NSString * const MGLOfflinePackMaximumCountUserInfoKey = @"MaximumCount";
     return self;
 }
 
++ (NSString *)bundleIdentifier {
+    NSString *bundleIdentifier = [NSBundle mainBundle].bundleIdentifier;
+    if (!bundleIdentifier) {
+        // There’s no main bundle identifier when running in a unit test bundle.
+        bundleIdentifier = [NSBundle bundleForClass:self].bundleIdentifier;
+    }
+    return bundleIdentifier;
+}
+
 - (void)dealloc {
+    [[MGLNetworkConfiguration sharedManager] removeObserver:self forKeyPath:@"apiBaseURL"];
     [[MGLAccountManager sharedManager] removeObserver:self forKeyPath:@"accessToken"];
     
     for (MGLOfflinePack *pack in self.packs) {
@@ -154,6 +176,13 @@ NSString * const MGLOfflinePackMaximumCountUserInfoKey = @"MaximumCount";
         NSString *accessToken = change[NSKeyValueChangeNewKey];
         if (![accessToken isKindOfClass:[NSNull class]]) {
             self.mbglFileSource->setAccessToken(accessToken.UTF8String);
+        }
+    } else if ([keyPath isEqualToString:@"apiBaseURL"] && object == [MGLNetworkConfiguration sharedManager]) {
+        NSURL *apiBaseURL = change[NSKeyValueChangeNewKey];
+        if ([apiBaseURL isKindOfClass:[NSNull class]]) {
+            self.mbglFileSource->setAPIBaseURL(mbgl::util::API_BASE_URL);
+        } else {
+            self.mbglFileSource->setAPIBaseURL(apiBaseURL.absoluteString.UTF8String);
         }
     } else {
         [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
@@ -292,20 +321,20 @@ NSString * const MGLOfflinePackMaximumCountUserInfoKey = @"MaximumCount";
 
 - (void)offlinePack:(MGLOfflinePack *)pack progressDidChange:(__unused MGLOfflinePackProgress)progress {
     [[NSNotificationCenter defaultCenter] postNotificationName:MGLOfflinePackProgressChangedNotification object:pack userInfo:@{
-        MGLOfflinePackStateUserInfoKey: @(pack.state),
-        MGLOfflinePackProgressUserInfoKey: [NSValue valueWithMGLOfflinePackProgress:progress],
+        MGLOfflinePackUserInfoKeyState: @(pack.state),
+        MGLOfflinePackUserInfoKeyProgress: [NSValue valueWithMGLOfflinePackProgress:progress],
     }];
 }
 
 - (void)offlinePack:(MGLOfflinePack *)pack didReceiveError:(NSError *)error {
     [[NSNotificationCenter defaultCenter] postNotificationName:MGLOfflinePackErrorNotification object:pack userInfo:@{
-        MGLOfflinePackErrorUserInfoKey: error,
+        MGLOfflinePackUserInfoKeyError: error,
     }];
 }
 
 - (void)offlinePack:(MGLOfflinePack *)pack didReceiveMaximumAllowedMapboxTiles:(uint64_t)maximumCount {
     [[NSNotificationCenter defaultCenter] postNotificationName:MGLOfflinePackMaximumMapboxTilesReachedNotification object:pack userInfo:@{
-        MGLOfflinePackMaximumCountUserInfoKey: @(maximumCount),
+        MGLOfflinePackUserInfoKeyMaximumCount: @(maximumCount),
     }];
 }
 

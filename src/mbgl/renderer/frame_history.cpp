@@ -1,12 +1,14 @@
 #include <mbgl/renderer/frame_history.hpp>
 #include <mbgl/math/minmax.hpp>
-#include <mbgl/gl/gl_config.hpp>
+#include <mbgl/gl/context.hpp>
+
+#include <cassert>
 
 namespace mbgl {
 
 FrameHistory::FrameHistory() {
     changeOpacities.fill(0);
-    opacities.fill(0);
+    std::fill(opacities.data.get(), opacities.data.get() + opacities.bytes(), 0);
 }
 
 void FrameHistory::record(const TimePoint& now, float zoom, const Duration& duration) {
@@ -17,7 +19,7 @@ void FrameHistory::record(const TimePoint& now, float zoom, const Duration& dura
         changeTimes.fill(now);
 
         for (int16_t z = 0; z <= zoomIndex; z++) {
-            opacities[z] = 255u;
+            opacities.data[z] = 255u;
         }
         firstFrame = false;
     }
@@ -25,12 +27,12 @@ void FrameHistory::record(const TimePoint& now, float zoom, const Duration& dura
     if (zoomIndex < previousZoomIndex) {
         for (int16_t z = zoomIndex + 1; z <= previousZoomIndex; z++) {
             changeTimes[z] = now;
-            changeOpacities[z] = opacities[z];
+            changeOpacities[z] = opacities.data[z];
         }
     } else {
         for (int16_t z = zoomIndex; z > previousZoomIndex; z--) {
             changeTimes[z] = now;
-            changeOpacities[z] = opacities[z];
+            changeOpacities[z] = opacities.data[z];
         }
     }
 
@@ -38,13 +40,13 @@ void FrameHistory::record(const TimePoint& now, float zoom, const Duration& dura
         std::chrono::duration<float> timeDiff = now - changeTimes[z];
         int32_t opacityChange = (duration == Milliseconds(0) ? 1 : (timeDiff / duration)) * 255;
         if (z <= zoomIndex) {
-            opacities[z] = util::min(255, changeOpacities[z] + opacityChange);
+            opacities.data[z] = util::min(255, changeOpacities[z] + opacityChange);
         } else {
-            opacities[z] = util::max(0, changeOpacities[z] - opacityChange);
+            opacities.data[z] = util::max(0, changeOpacities[z] - opacityChange);
         }
     }
 
-    changed = true;
+    dirty = true;
 
     if (zoomIndex != previousZoomIndex) {
         previousZoomIndex = zoomIndex;
@@ -58,59 +60,18 @@ bool FrameHistory::needsAnimation(const Duration& duration) const {
     return (time - previousTime) < duration;
 }
 
-void FrameHistory::upload(gl::ObjectStore& store, gl::Config& config, uint32_t unit) {
-
-    if (changed) {
-        const bool first = !texture;
-        bind(store, config, unit);
-
-        if (first) {
-            MBGL_CHECK_ERROR(glTexImage2D(
-                        GL_TEXTURE_2D, // GLenum target
-                        0, // GLint level
-                        GL_ALPHA, // GLint internalformat
-                        width, // GLsizei width
-                        height, // GLsizei height
-                        0, // GLint border
-                        GL_ALPHA, // GLenum format
-                        GL_UNSIGNED_BYTE, // GLenum type
-                        opacities.data()
-                        ));
-        } else {
-            MBGL_CHECK_ERROR(glTexSubImage2D(
-                        GL_TEXTURE_2D, // GLenum target
-                        0, // GLint level
-                        0, // GLint xoffset
-                        0, // GLint yoffset
-                        width, // GLsizei width
-                        height, // GLsizei height
-                        GL_ALPHA, // GLenum format
-                        GL_UNSIGNED_BYTE, // GLenum type
-                        opacities.data()
-                        ));
-        }
-
-        changed = false;
-
+void FrameHistory::upload(gl::Context& context, uint32_t unit) {
+    if (!texture) {
+        texture = context.createTexture(opacities, unit);
+    } else if (dirty) {
+        context.updateTexture(*texture, opacities, unit);
     }
+    dirty = false;
 }
 
-void FrameHistory::bind(gl::ObjectStore& store, gl::Config& config, uint32_t unit) {
-    if (!texture) {
-        texture = store.createTexture();
-        config.activeTexture = unit;
-        config.texture[unit] = *texture;
-#ifndef GL_ES_VERSION_2_0
-        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0));
-#endif
-        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-    } else if (config.texture[unit] != *texture) {
-        config.activeTexture = unit;
-        config.texture[unit] = *texture;
-    }
+void FrameHistory::bind(gl::Context& context, uint32_t unit) {
+    upload(context, unit);
+    context.bindTexture(*texture, unit);
 }
 
 } // namespace mbgl

@@ -2,6 +2,7 @@
 #include <mbgl/tile/tile_observer.hpp>
 #include <mbgl/renderer/debug_bucket.hpp>
 #include <mbgl/util/string.hpp>
+#include <mbgl/platform/log.hpp>
 
 namespace mbgl {
 
@@ -18,7 +19,7 @@ void Tile::setObserver(TileObserver* observer_) {
 
 void Tile::setTriedOptional() {
     triedOptional = true;
-    observer->onNeedsRepaint();
+    observer->onTileChanged(*this);
 }
 
 void Tile::dumpDebugLogs() const {

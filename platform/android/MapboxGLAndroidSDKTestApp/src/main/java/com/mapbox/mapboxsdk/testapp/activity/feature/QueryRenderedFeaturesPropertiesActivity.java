@@ -64,7 +64,10 @@ public class QueryRenderedFeaturesPropertiesActivity extends AppCompatActivity {
                     public void onMapClick(@NonNull LatLng point) {
                         //Query
                         final PointF pixel = mapboxMap.getProjection().toScreenLocation(point);
-                        Log.i(TAG, String.format("Requesting features for %sx%s (%sx%s adjusted for density)", pixel.x, pixel.y, pixel.x / density, pixel.y / density));
+                        Log.i(TAG, String.format(
+                            "Requesting features for %sx%s (%sx%s adjusted for density)",
+                            pixel.x, pixel.y, pixel.x / density, pixel.y / density)
+                        );
                         List<Feature> features = mapboxMap.queryRenderedFeatures(pixel);
 
                         //Debug output
@@ -146,15 +149,27 @@ public class QueryRenderedFeaturesPropertiesActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onResume() {
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
         super.onResume();
         mapView.onResume();
     }
 
     @Override
-    public void onPause() {
+    protected void onPause() {
         super.onPause();
         mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override

@@ -62,17 +62,23 @@ public class CameraPositionActivity extends AppCompatActivity implements OnMapRe
             public void onClick(View v) {
                 Context context = v.getContext();
                 final View dialogContent = LayoutInflater.from(context).inflate(R.layout.dialog_camera_position, null);
-                AlertDialog.Builder builder = new AlertDialog.Builder(context, com.mapbox.mapboxsdk.R.style.AttributionAlertDialogStyle);
+                AlertDialog.Builder builder = new AlertDialog.Builder(
+                    context, com.mapbox.mapboxsdk.R.style.mapbox_AlertDialogStyle);
                 builder.setTitle(R.string.dialog_camera_position);
                 builder.setView(onInflateDialogContent(dialogContent));
                 builder.setPositiveButton("Animate", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        double latitude = Double.parseDouble(((TextView) dialogContent.findViewById(R.id.value_lat)).getText().toString());
-                        double longitude = Double.parseDouble(((TextView) dialogContent.findViewById(R.id.value_lon)).getText().toString());
-                        double zoom = Double.parseDouble(((TextView) dialogContent.findViewById(R.id.value_zoom)).getText().toString());
-                        double bearing = Double.parseDouble(((TextView) dialogContent.findViewById(R.id.value_bearing)).getText().toString());
-                        double tilt = Double.parseDouble(((TextView) dialogContent.findViewById(R.id.value_tilt)).getText().toString());
+                        double latitude = Double.parseDouble(
+                            ((TextView) dialogContent.findViewById(R.id.value_lat)).getText().toString());
+                        double longitude = Double.parseDouble(
+                            ((TextView) dialogContent.findViewById(R.id.value_lon)).getText().toString());
+                        double zoom = Double.parseDouble(
+                            ((TextView) dialogContent.findViewById(R.id.value_zoom)).getText().toString());
+                        double bearing = Double.parseDouble(
+                            ((TextView) dialogContent.findViewById(R.id.value_bearing)).getText().toString());
+                        double tilt = Double.parseDouble(
+                            ((TextView) dialogContent.findViewById(R.id.value_tilt)).getText().toString());
 
                         CameraPosition cameraPosition = new CameraPosition.Builder()
                                 .target(new LatLng(latitude, longitude))
@@ -81,7 +87,17 @@ public class CameraPositionActivity extends AppCompatActivity implements OnMapRe
                                 .tilt(tilt)
                                 .build();
 
-                        mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 5000);
+                        mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 5000, new MapboxMap.CancelableCallback() {
+                            @Override
+                            public void onCancel() {
+                                Log.v(MapboxConstants.TAG, "OnCancel called");
+                            }
+
+                            @Override
+                            public void onFinish() {
+                                Log.v(MapboxConstants.TAG, "OnFinish called");
+                            }
+                        });
                         Log.v(MapboxConstants.TAG, cameraPosition.toString());
                     }
                 });
@@ -93,15 +109,27 @@ public class CameraPositionActivity extends AppCompatActivity implements OnMapRe
     }
 
     @Override
-    public void onPause() {
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mapView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
         super.onPause();
         mapView.onPause();
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        mapView.onResume();
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override
@@ -136,7 +164,8 @@ public class CameraPositionActivity extends AppCompatActivity implements OnMapRe
         return view;
     }
 
-    private void linkTextView(View view, @IdRes int textViewRes, @IdRes int seekBarRes, ValueChangeListener listener, int defaultValue) {
+    private void linkTextView(
+        View view, @IdRes int textViewRes, @IdRes int seekBarRes, ValueChangeListener listener, int defaultValue) {
         final TextView value = (TextView) view.findViewById(textViewRes);
         SeekBar seekBar = (SeekBar) view.findViewById(seekBarRes);
         listener.setLinkedValueView(value);

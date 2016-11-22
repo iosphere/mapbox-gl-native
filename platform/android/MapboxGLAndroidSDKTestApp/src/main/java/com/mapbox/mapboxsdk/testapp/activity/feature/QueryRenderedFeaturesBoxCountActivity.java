@@ -31,7 +31,6 @@ public class QueryRenderedFeaturesBoxCountActivity extends AppCompatActivity {
 
     public MapView mapView;
     private MapboxMap mapboxMap;
-    private Marker marker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,7 +63,10 @@ public class QueryRenderedFeaturesBoxCountActivity extends AppCompatActivity {
                         List<Feature> features = mapboxMap.queryRenderedFeatures(box);
 
                         //Show count
-                        Toast.makeText(QueryRenderedFeaturesBoxCountActivity.this, String.format("%s features in box", features.size()), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(
+                            QueryRenderedFeaturesBoxCountActivity.this,
+                            String.format("%s features in box", features.size()),
+                            Toast.LENGTH_SHORT).show();
 
                         //Debug output
                         debugOutput(features);
@@ -103,15 +105,27 @@ public class QueryRenderedFeaturesBoxCountActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onResume() {
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
         super.onResume();
         mapView.onResume();
     }
 
     @Override
-    public void onPause() {
+    protected void onPause() {
         super.onPause();
         mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override

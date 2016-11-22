@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <iosfwd>
 #include <cassert>
+#include <boost/functional/hash.hpp>
 
 namespace mbgl {
 
@@ -107,12 +108,7 @@ inline bool CanonicalTileID::operator!=(const CanonicalTileID& rhs) const {
 }
 
 inline bool CanonicalTileID::operator<(const CanonicalTileID& rhs) const {
-    if (z != rhs.z) {
-        return z < rhs.z;
-    } else if (x != rhs.x) {
-        return x < rhs.x;
-    }
-    return y < rhs.y;
+    return z != rhs.z ? z < rhs.z : x != rhs.x ? x < rhs.x : y < rhs.y;
 }
 
 inline bool CanonicalTileID::isChildOf(const CanonicalTileID& parent) const {
@@ -174,10 +170,7 @@ inline bool OverscaledTileID::operator!=(const OverscaledTileID& rhs) const {
 }
 
 inline bool OverscaledTileID::operator<(const OverscaledTileID& rhs) const {
-    if (overscaledZ != rhs.overscaledZ) {
-        return overscaledZ < rhs.overscaledZ;
-    }
-    return canonical < rhs.canonical;
+    return overscaledZ != rhs.overscaledZ ? overscaledZ < rhs.overscaledZ : canonical < rhs.canonical;
 }
 
 inline uint32_t OverscaledTileID::overscaleFactor() const {
@@ -190,11 +183,7 @@ inline bool OverscaledTileID::isChildOf(const OverscaledTileID& rhs) const {
 }
 
 inline OverscaledTileID OverscaledTileID::scaledTo(uint8_t z) const {
-    if (z >= canonical.z) {
-        return { z, canonical };
-    } else {
-        return { z, canonical.scaledTo(z) };
-    }
+    return { z, z >= canonical.z ? canonical : canonical.scaledTo(z) };
 }
 
 inline UnwrappedTileID OverscaledTileID::unwrapTo(int16_t wrap) const {
@@ -222,10 +211,7 @@ inline bool UnwrappedTileID::operator!=(const UnwrappedTileID& rhs) const {
 }
 
 inline bool UnwrappedTileID::operator<(const UnwrappedTileID& rhs) const {
-    if (wrap != rhs.wrap) {
-        return wrap < rhs.wrap;
-    }
-    return canonical < rhs.canonical;
+    return wrap != rhs.wrap ? wrap < rhs.wrap : canonical < rhs.canonical;
 }
 
 inline bool UnwrappedTileID::isChildOf(const UnwrappedTileID& parent) const {
@@ -254,3 +240,36 @@ inline float UnwrappedTileID::pixelsToTileUnits(const float pixelValue, const fl
 }
 
 } // namespace mbgl
+
+namespace std {
+
+template <> struct hash<mbgl::CanonicalTileID> {
+    size_t operator()(const mbgl::CanonicalTileID &id) const {
+        std::size_t seed = 0;
+        boost::hash_combine(seed, id.x);
+        boost::hash_combine(seed, id.y);
+        boost::hash_combine(seed, id.z);
+        return seed;
+    }
+};
+    
+template <> struct hash<mbgl::UnwrappedTileID> {
+    size_t operator()(const mbgl::UnwrappedTileID &id) const {
+        std::size_t seed = 0;
+        boost::hash_combine(seed, std::hash<mbgl::CanonicalTileID>{}(id.canonical));
+        boost::hash_combine(seed, id.wrap);
+        return seed;
+    }
+};
+    
+template <> struct hash<mbgl::OverscaledTileID> {
+    size_t operator()(const mbgl::OverscaledTileID &id) const {
+        std::size_t seed = 0;
+        boost::hash_combine(seed, std::hash<mbgl::CanonicalTileID>{}(id.canonical));
+        boost::hash_combine(seed, id.overscaledZ);
+        return seed;
+    }
+};
+
+} // namespace std
+

@@ -1,6 +1,6 @@
 'use strict';
 
-var mbgl = require('../../../lib/mapbox-gl-native');
+var mbgl = require('../index');
 var request = require('request');
 
 mbgl.on('message', function(msg) {
@@ -30,15 +30,16 @@ module.exports = function (style, options, callback) {
         callback(new Error('timed out after 20 seconds'));
     }, 20000);
 
-    options.center = style.center;
-    options.zoom = style.zoom;
-    options.bearing = style.bearing;
-    options.pitch = style.pitch;
     options.debug = {
         tileBorders: options.debug,
         collision: options.collisionDebug,
         overdraw: options.showOverdrawInspector,
     };
+
+    options.center = style.center || [0, 0];
+    options.zoom = style.zoom || 0;
+    options.bearing = style.bearing || 0;
+    options.pitch = style.pitch || 0;
 
     map.load(style);
 
@@ -60,7 +61,7 @@ module.exports = function (style, options, callback) {
             callback();
 
         } else if (operation[0] === 'wait') {
-            var wait = function() {
+            var wait = function () {
                 if (map.loaded()) {
                     applyOperations(operations.slice(1), callback);
                 } else {
@@ -70,6 +71,17 @@ module.exports = function (style, options, callback) {
             wait();
 
         } else {
+            // Ensure that the next `map.render(options)` does not overwrite this change.
+            if (operation[0] === 'setCenter') {
+                options.center = operations[1];
+            } else if (operation[0] === 'setZoom') {
+                options.zoom = operations[1];
+            } else if (operation[0] === 'setBearing') {
+                options.bearing = operations[1];
+            } else if (operation[0] === 'setPitch') {
+                options.pitch = operations[1];
+            }
+
             map[operation[0]].apply(map, operation.slice(1));
             applyOperations(operations.slice(1), callback);
         }

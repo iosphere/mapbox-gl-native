@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 project(mbgl LANGUAGES CXX C)
+set(CMAKE_CXX_STANDARD 14)
 
 include(cmake/mbgl.cmake)
 
@@ -13,23 +14,45 @@ include(.mason/mason.cmake)
 
 option(WITH_CXX11ABI "Use cxx11abi mason packages" OFF)
 option(WITH_COVERAGE "Enable coverage reports" OFF)
+option(WITH_OSMESA   "Use OSMesa headless backend" OFF)
+option(WITH_EGL      "Use EGL backend" OFF)
+option(IS_CI_BUILD   "Continuous integration build" OFF)
 
 if(WITH_CXX11ABI)
     set(MASON_CXXABI_SUFFIX -cxx11abi)
 endif()
 
+if(WITH_OSMESA AND WITH_EGL)
+    message(FATAL_ERROR "WITH_OSMESA and WITH_EGL are mutually exclusive.")
+endif()
+
+if(WITH_OSMESA)
+    # Default mesa mason binary is OSMesa.
+    set(MASON_MESA_SUFFIX "")
+elseif(WITH_EGL)
+    add_definitions(-DMBGL_USE_GLES2=1)
+    set(MASON_MESA_SUFFIX "-egl")
+else()
+    set(MASON_MESA_SUFFIX "-glx")
+endif()
+
+if(IS_CI_BUILD)
+    add_compile_options(-DCI_BUILD=1)
+endif()
+
 mason_use(geometry VERSION 0.8.0 HEADER_ONLY)
 mason_use(variant VERSION 1.1.0 HEADER_ONLY)
 mason_use(unique_resource VERSION dev HEADER_ONLY)
-mason_use(rapidjson VERSION 1.0.2 HEADER_ONLY)
+mason_use(rapidjson VERSION 1.1.0 HEADER_ONLY)
 mason_use(boost VERSION 1.60.0 HEADER_ONLY)
 mason_use(geojsonvt VERSION 6.1.3 HEADER_ONLY)
 mason_use(supercluster VERSION 0.2.0 HEADER_ONLY)
 mason_use(kdbush VERSION 0.1.1 HEADER_ONLY)
-mason_use(earcut VERSION 0.11 HEADER_ONLY)
+mason_use(earcut VERSION 0.12.1 HEADER_ONLY)
 mason_use(protozero VERSION 1.4.2 HEADER_ONLY)
-mason_use(pixelmatch VERSION 0.9.0 HEADER_ONLY)
-mason_use(geojson VERSION 0.1.4${MASON_CXXABI_SUFFIX})
+mason_use(pixelmatch VERSION 0.10.0 HEADER_ONLY)
+mason_use(geojson VERSION 0.3.2 HEADER_ONLY)
+mason_use(icu VERSION 58.1)
 
 if(WITH_COVERAGE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
@@ -37,7 +60,17 @@ if(WITH_COVERAGE)
 endif(WITH_COVERAGE)
 
 set(CMAKE_CONFIGURATION_TYPES Debug Release)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Wextra -Wshadow -Wno-variadic-macros -Wno-unknown-pragmas")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -ftemplate-depth=1024 -Wall -Wextra -Wshadow -Werror -Wno-variadic-macros -Wno-unknown-pragmas")
+if(APPLE)
+    # -Wno-error=unused-command-line-argument is required due to https://llvm.org/bugs/show_bug.cgi?id=7798
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-command-line-argument")
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX)
+    # https://svn.boost.org/trac/boost/ticket/9240
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fext-numeric-literals")
+endif()
 
 if(NOT EXISTS ${CMAKE_SOURCE_DIR}/platform/${MBGL_PLATFORM}/config.cmake)
     message(ERROR "Can't find config.cmake file for platform ${MBGL_PLATFORM}")
@@ -52,6 +85,11 @@ include(cmake/core.cmake)
 if(COMMAND mbgl_platform_test)
     include(cmake/test-files.cmake)
     include(cmake/test.cmake)
+endif()
+
+if(COMMAND mbgl_platform_benchmark)
+    include(cmake/benchmark-files.cmake)
+    include(cmake/benchmark.cmake)
 endif()
 
 if(COMMAND mbgl_platform_glfw)

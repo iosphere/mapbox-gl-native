@@ -11,10 +11,10 @@
 namespace mbgl {
 
 // Note: this only works for the BMP
-GlyphRange getGlyphRange(char32_t glyph);
+GlyphRange getGlyphRange(char16_t glyph);
 
 struct GlyphMetrics {
-    operator bool() const {
+    explicit operator bool() const {
         return !(width == 0 && height == 0 && advance == 0);
     }
 
@@ -27,12 +27,20 @@ struct GlyphMetrics {
 
 };
 
+inline bool operator==(const GlyphMetrics& lhs, const GlyphMetrics& rhs) {
+    return lhs.width == rhs.width &&
+        lhs.height == rhs.height &&
+        lhs.left == rhs.left &&
+        lhs.top == rhs.top &&
+        lhs.advance == rhs.advance;
+}
+
 struct Glyph {
     explicit Glyph() : rect(0, 0, 0, 0), metrics() {}
     explicit Glyph(Rect<uint16_t> rect_, GlyphMetrics metrics_)
         : rect(std::move(rect_)), metrics(std::move(metrics_)) {}
 
-    operator bool() const {
+    explicit operator bool() const {
         return metrics || rect.hasArea();
     }
 
@@ -55,16 +63,16 @@ public:
 class Shaping {
     public:
     explicit Shaping() : top(0), bottom(0), left(0), right(0) {}
-    explicit Shaping(float x, float y, std::u32string text_)
+    explicit Shaping(float x, float y, std::u16string text_)
         : text(std::move(text_)), top(y), bottom(y), left(x), right(x) {}
     std::vector<PositionedGlyph> positionedGlyphs;
-    std::u32string text;
+    std::u16string text;
     int32_t top;
     int32_t bottom;
     int32_t left;
     int32_t right;
 
-    operator bool() const { return !positionedGlyphs.empty(); }
+    explicit operator bool() const { return !positionedGlyphs.empty(); }
 };
 
 class SDFGlyph {

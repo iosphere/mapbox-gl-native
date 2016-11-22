@@ -2,7 +2,6 @@
 
 #include <mbgl/tile/tile_id.hpp>
 #include <mbgl/util/mat4.hpp>
-#include <mbgl/util/ptr.hpp>
 #include <mbgl/util/clip_id.hpp>
 #include <mbgl/style/types.hpp>
 
@@ -25,6 +24,7 @@ public:
     Tile& tile;
     ClipID clip;
     mat4 matrix;
+    bool used = false;
 
     mat4 translatedMatrix(const std::array<float, 2>& translate,
                           style::TranslateAnchorType anchor,

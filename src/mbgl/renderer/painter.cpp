@@ -5,6 +5,8 @@
 #include <mbgl/style/source.hpp>
 #include <mbgl/style/source_impl.hpp>
 
+#include <mbgl/map/view.hpp>
+
 #include <mbgl/platform/log.hpp>
 #include <mbgl/gl/debugging.hpp>
 
@@ -17,9 +19,10 @@
 
 #include <mbgl/sprite/sprite_atlas.hpp>
 #include <mbgl/geometry/line_atlas.hpp>
-#include <mbgl/geometry/glyph_atlas.hpp>
+#include <mbgl/text/glyph_atlas.hpp>
 
-#include <mbgl/shader/shaders.hpp>
+#include <mbgl/programs/program_parameters.hpp>
+#include <mbgl/programs/programs.hpp>
 
 #include <mbgl/algorithm/generate_clip_ids.hpp>
 #include <mbgl/algorithm/generate_clip_ids_impl.hpp>
@@ -28,27 +31,69 @@
 #include <mbgl/util/mat3.hpp>
 #include <mbgl/util/string.hpp>
 
+#include <mbgl/util/offscreen_texture.hpp>
+
 #include <cassert>
 #include <algorithm>
 #include <iostream>
+#include <unordered_set>
 
 namespace mbgl {
 
 using namespace style;
 
-Painter::Painter(const TransformState& state_,
-                 gl::ObjectStore& store_)
-    : state(state_), store(store_) {
-    gl::debugging::enable();
+static gl::VertexVector<FillVertex, gl::Triangles> tileTriangles() {
+    gl::VertexVector<FillVertex, gl::Triangles> result;
+    result.emplace_back(
+            FillAttributes::vertex({ 0,            0 }),
+            FillAttributes::vertex({ util::EXTENT, 0 }),
+            FillAttributes::vertex({ 0, util::EXTENT }));
+    result.emplace_back(
+            FillAttributes::vertex({ util::EXTENT, 0 }),
+            FillAttributes::vertex({ 0, util::EXTENT }),
+            FillAttributes::vertex({ util::EXTENT, util::EXTENT }));
+    return result;
+}
 
-    shaders = std::make_unique<Shaders>(store);
+static gl::VertexVector<FillVertex, gl::LineStrip> tileLineStrip() {
+    gl::VertexVector<FillVertex, gl::LineStrip> result;
+    result.emplace_back(FillAttributes::vertex({ 0, 0 }));
+    result.emplace_back(FillAttributes::vertex({ util::EXTENT, 0 }));
+    result.emplace_back(FillAttributes::vertex({ util::EXTENT, util::EXTENT }));
+    result.emplace_back(FillAttributes::vertex({ 0, util::EXTENT }));
+    result.emplace_back(FillAttributes::vertex({ 0, 0 }));
+    return result;
+}
+
+static gl::VertexVector<RasterVertex, gl::TriangleStrip> rasterTriangleStrip() {
+    gl::VertexVector<RasterVertex, gl::TriangleStrip> result;
+    result.emplace_back(RasterProgram::vertex({ 0, 0 }, { 0, 0 }));
+    result.emplace_back(RasterProgram::vertex({ util::EXTENT, 0 }, { 32767, 0 }));
+    result.emplace_back(RasterProgram::vertex({ 0, util::EXTENT }, { 0, 32767 }));
+    result.emplace_back(RasterProgram::vertex({ util::EXTENT, util::EXTENT }, { 32767, 32767 }));
+    return result;
+}
+
+Painter::Painter(gl::Context& context_, const TransformState& state_, float pixelRatio)
+    : context(context_),
+      state(state_),
+      tileTriangleVertexBuffer(context.createVertexBuffer(tileTriangles())),
+      tileTriangleSegments(tileTriangleVertexBuffer),
+      tileBorderVertexBuffer(context.createVertexBuffer(tileLineStrip())),
+      tileBorderSegments(tileBorderVertexBuffer),
+      rasterVertexBuffer(context.createVertexBuffer(rasterTriangleStrip())),
+      rasterSegments(rasterVertexBuffer) {
 #ifndef NDEBUG
-    overdrawShaders = std::make_unique<Shaders>(store, Shader::Overdraw);
+    gl::debugging::enable();
 #endif
 
-    // Reset GL values
-    config.setDirty();
-    config.reset();
+    ProgramParameters programParameters{ pixelRatio, false };
+    programs = std::make_unique<Programs>(context, programParameters);
+#ifndef NDEBUG
+    
+    ProgramParameters programParametersOverdraw{ pixelRatio, true };
+    overdrawPrograms = std::make_unique<Programs>(context, programParametersOverdraw);
+#endif
 }
 
 Painter::~Painter() = default;
@@ -57,36 +102,37 @@ bool Painter::needsAnimation() const {
     return frameHistory.needsAnimation(util::DEFAULT_FADE_DURATION);
 }
 
-void Painter::setClipping(const ClipID& clip) {
-    const GLint ref = (GLint)clip.reference.to_ulong();
-    const GLuint mask = (GLuint)clip.mask.to_ulong();
-    config.stencilFunc = { GL_EQUAL, ref, mask };
+void Painter::cleanup() {
+    context.performCleanup();
 }
 
-void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& annotationSpriteAtlas) {
+void Painter::render(const Style& style, const FrameData& frame_, View& view, SpriteAtlas& annotationSpriteAtlas) {
     frame = frame_;
+    if (frame.contextMode == GLContextMode::Shared) {
+        context.setDirtyState();
+    }
 
     PaintParameters parameters {
 #ifndef NDEBUG
-        isOverdraw() ? *overdrawShaders : *shaders
+        paintMode() == PaintMode::Overdraw ? *overdrawPrograms : *programs,
 #else
-        *shaders
+        *programs,
 #endif
+        view
     };
 
     glyphAtlas = style.glyphAtlas.get();
     spriteAtlas = style.spriteAtlas.get();
     lineAtlas = style.lineAtlas.get();
 
-    RenderData renderData = style.getRenderData(frame.debugOptions);
+    RenderData renderData = style.getRenderData(frame.debugOptions, state.getAngle());
     const std::vector<RenderItem>& order = renderData.order;
-    const std::set<Source*>& sources = renderData.sources;
-    const Color& background = renderData.backgroundColor;
+    const std::unordered_set<Source*>& sources = renderData.sources;
 
     // Update the default matrices to the current viewport dimensions.
     state.getProjMatrix(projMatrix);
 
-    pixelsToGLUnits = {{ 2.0f  / state.getWidth(), -2.0f / state.getHeight() }};
+    pixelsToGLUnits = {{ 2.0f  / state.getSize().width, -2.0f / state.getSize().height }};
     if (state.getViewportMode() == ViewportMode::FlippedY) {
         pixelsToGLUnits[1] *= -1;
     }
@@ -94,23 +140,22 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
     frameHistory.record(frame.timePoint, state.getZoom(),
         frame.mapMode == MapMode::Continuous ? util::DEFAULT_FADE_DURATION : Milliseconds(0));
 
+
     // - UPLOAD PASS -------------------------------------------------------------------------------
     // Uploads all required buffers and images before we do any actual rendering.
     {
         MBGL_DEBUG_GROUP("upload");
 
-        tileStencilBuffer.upload(store);
-        rasterBoundsBuffer.upload(store);
-        tileBorderBuffer.upload(store);
-        spriteAtlas->upload(store, config, 0);
-        lineAtlas->upload(store, config, 0);
-        glyphAtlas->upload(store, config, 0);
-        frameHistory.upload(store, config, 0);
-        annotationSpriteAtlas.upload(store, config, 0);
+        spriteAtlas->upload(context, 0);
+
+        lineAtlas->upload(context, 0);
+        glyphAtlas->upload(context, 0);
+        frameHistory.upload(context, 0);
+        annotationSpriteAtlas.upload(context, 0);
 
         for (const auto& item : order) {
             if (item.bucket && item.bucket->needsUpload()) {
-                item.bucket->upload(store, config);
+                item.bucket->upload(context);
             }
         }
     }
@@ -120,25 +165,12 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
     // tiles whatsoever.
     {
         MBGL_DEBUG_GROUP("clear");
-        config.stencilFunc.reset();
-        config.stencilTest = GL_TRUE;
-        config.stencilMask = 0xFF;
-        config.depthTest = GL_FALSE;
-        config.depthMask = GL_TRUE;
-        config.colorMask = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
-
-        if (isOverdraw()) {
-            config.blend = GL_TRUE;
-            config.blendFunc = { GL_CONSTANT_COLOR, GL_ONE };
-            const float overdraw = 1.0f / 8.0f;
-            config.blendColor = { overdraw, overdraw, overdraw, 0.0f };
-            config.clearColor = Color::black();
-        } else {
-            config.clearColor = background;
-        }
-        config.clearStencil = 0;
-        config.clearDepth = 1;
-        MBGL_CHECK_ERROR(glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+        view.bind();
+        context.clear(paintMode() == PaintMode::Overdraw
+                        ? Color::black()
+                        : renderData.backgroundColor,
+                      1.0f,
+                      0);
     }
 
     // - CLIPPING MASKS ----------------------------------------------------------------------------
@@ -152,12 +184,17 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
             source->baseImpl->startRender(generator, projMatrix, state);
         }
 
-        drawClippingMasks(parameters, generator.getStencils());
+        MBGL_DEBUG_GROUP("clipping masks");
+
+        for (const auto& stencil : generator.getStencils()) {
+            MBGL_DEBUG_GROUP(std::string{ "mask: " } + util::toString(stencil.first));
+            renderClippingMask(stencil.first, stencil.second);
+        }
     }
 
-#ifndef NDEBUG
+#if not MBGL_USE_GLES2 and not defined(NDEBUG)
     if (frame.debugOptions & MapDebugOptions::StencilClip) {
-        renderClipMasks();
+        renderClipMasks(parameters);
         return;
     }
 #endif
@@ -180,7 +217,7 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
     renderPass(parameters,
                RenderPass::Translucent,
                order.begin(), order.end(),
-               static_cast<GLsizei>(order.size()) - 1, -1);
+               static_cast<uint32_t>(order.size()) - 1, -1);
 
     if (debug::renderTree) { Log::Info(Event::Render, "}"); indent--; }
 
@@ -198,9 +235,9 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
         }
     }
 
-#ifndef NDEBUG
+#if not MBGL_USE_GLES2 and not defined(NDEBUG)
     if (frame.debugOptions & MapDebugOptions::DepthBuffer) {
-        renderDepthBuffer();
+        renderDepthBuffer(parameters);
     }
 #endif
 
@@ -209,16 +246,12 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
     {
         MBGL_DEBUG_GROUP("cleanup");
 
-        config.activeTexture = 1;
-        config.texture[1] = 0;
-        config.activeTexture = 0;
-        config.texture[0] = 0;
+        context.activeTexture = 1;
+        context.texture[1] = 0;
+        context.activeTexture = 0;
+        context.texture[0] = 0;
 
-        MBGL_CHECK_ERROR(VertexArrayObject::Unbind());
-    }
-
-    if (frame.contextMode == GLContextMode::Shared) {
-        config.setDirty();
+        context.vertexArrayObject = 0;
     }
 }
 
@@ -226,7 +259,7 @@ template <class Iterator>
 void Painter::renderPass(PaintParameters& parameters,
                          RenderPass pass_,
                          Iterator it, Iterator end,
-                         GLsizei i, int8_t increment) {
+                         uint32_t i, int8_t increment) {
     pass = pass_;
 
     MBGL_DEBUG_GROUP(pass == RenderPass::Opaque ? "opaque" : "translucent");
@@ -245,36 +278,26 @@ void Painter::renderPass(PaintParameters& parameters,
         if (!layer.baseImpl->hasRenderPass(pass))
             continue;
 
-        if (isOverdraw()) {
-            config.blend = GL_TRUE;
-        } else if (pass == RenderPass::Translucent) {
-            config.blendFunc.reset();
-            config.blend = GL_TRUE;
-        } else {
-            config.blend = GL_FALSE;
-        }
-
-        config.colorMask = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
-        config.stencilMask = 0x0;
-
         if (layer.is<BackgroundLayer>()) {
             MBGL_DEBUG_GROUP("background");
             renderBackground(parameters, *layer.as<BackgroundLayer>());
         } else if (layer.is<CustomLayer>()) {
             MBGL_DEBUG_GROUP(layer.baseImpl->id + " - custom");
-            VertexArrayObject::Unbind();
-            config.depthFunc.reset();
-            config.depthTest = GL_TRUE;
-            config.depthMask = GL_FALSE;
-            config.stencilTest = GL_FALSE;
-            setDepthSublayer(0);
+
+            // Reset GL state to a known state so the CustomLayer always has a clean slate.
+            context.vertexArrayObject = 0;
+            context.setDepthMode(depthModeForSublayer(0, gl::DepthMode::ReadOnly));
+            context.setStencilMode(gl::StencilMode::disabled());
+            context.setColorMode(colorModeForRenderPass());
+
             layer.as<CustomLayer>()->impl->render(state);
-            config.setDirty();
+
+            // Reset the view back to our original one, just in case the CustomLayer changed
+            // the viewport or Framebuffer.
+            parameters.view.bind();
+            context.setDirtyState();
         } else {
             MBGL_DEBUG_GROUP(layer.baseImpl->id + " - " + util::toString(item.tile->id));
-            if (item.bucket->needsClipping()) {
-                setClipping(item.tile->clip);
-            }
             item.bucket->render(*this, parameters, layer, *item.tile);
         }
     }
@@ -284,10 +307,46 @@ void Painter::renderPass(PaintParameters& parameters,
     }
 }
 
-void Painter::setDepthSublayer(int n) {
+mat4 Painter::matrixForTile(const UnwrappedTileID& tileID) {
+    mat4 matrix;
+    state.matrixFor(matrix, tileID);
+    matrix::multiply(matrix, projMatrix, matrix);
+    return matrix;
+}
+
+gl::DepthMode Painter::depthModeForSublayer(uint8_t n, gl::DepthMode::Mask mask) const {
     float nearDepth = ((1 + currentLayer) * numSublayers + n) * depthEpsilon;
     float farDepth = nearDepth + depthRangeSize;
-    config.depthRange = { nearDepth, farDepth };
+    return gl::DepthMode { gl::DepthMode::LessEqual, mask, { nearDepth, farDepth } };
+}
+
+gl::StencilMode Painter::stencilModeForClipping(const ClipID& id) const {
+    return gl::StencilMode {
+        gl::StencilMode::Equal { static_cast<uint32_t>(id.mask.to_ulong()) },
+        static_cast<int32_t>(id.reference.to_ulong()),
+        0,
+        gl::StencilMode::Keep,
+        gl::StencilMode::Keep,
+        gl::StencilMode::Replace
+    };
+}
+
+gl::ColorMode Painter::colorModeForRenderPass() const {
+    if (paintMode() == PaintMode::Overdraw) {
+        const float overdraw = 1.0f / 8.0f;
+        return gl::ColorMode {
+            gl::ColorMode::Add {
+                gl::ColorMode::ConstantColor,
+                gl::ColorMode::One
+            },
+            Color { overdraw, overdraw, overdraw, 0.0f },
+            gl::ColorMode::Mask { true, true, true, true }
+        };
+    } else if (pass == RenderPass::Translucent) {
+        return gl::ColorMode::alphaBlended();
+    } else {
+        return gl::ColorMode::unblended();
+    }
 }
 
 } // namespace mbgl

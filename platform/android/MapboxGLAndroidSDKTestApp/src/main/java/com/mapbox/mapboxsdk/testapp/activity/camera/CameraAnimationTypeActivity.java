@@ -95,13 +95,19 @@ public class CameraAnimationTypeActivity extends AppCompatActivity implements On
                         @Override
                         public void onCancel() {
                             Log.i(TAG, "Duration onCancel Callback called.");
-                            Toast.makeText(CameraAnimationTypeActivity.this, "Ease onCancel Callback called.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(
+                                CameraAnimationTypeActivity.this,
+                                "Ease onCancel Callback called.",
+                                Toast.LENGTH_LONG).show();
                         }
 
                         @Override
                         public void onFinish() {
                             Log.i(TAG, "Duration onFinish Callback called.");
-                            Toast.makeText(CameraAnimationTypeActivity.this, "Ease onFinish Callback called.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(
+                                CameraAnimationTypeActivity.this,
+                                "Ease onFinish Callback called.",
+                                Toast.LENGTH_LONG).show();
                         }
                     };
 
@@ -126,13 +132,19 @@ public class CameraAnimationTypeActivity extends AppCompatActivity implements On
                         @Override
                         public void onCancel() {
                             Log.i(TAG, "Duration onCancel Callback called.");
-                            Toast.makeText(CameraAnimationTypeActivity.this, "Duration onCancel Callback called.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(
+                                CameraAnimationTypeActivity.this,
+                                "Duration onCancel Callback called.",
+                                Toast.LENGTH_LONG).show();
                         }
 
                         @Override
                         public void onFinish() {
                             Log.i(TAG, "Duration onFinish Callback called.");
-                            Toast.makeText(CameraAnimationTypeActivity.this, "Duration onFinish Callback called.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(
+                                CameraAnimationTypeActivity.this,
+                                "Duration onFinish Callback called.",
+                                Toast.LENGTH_LONG).show();
                         }
                     };
 
@@ -148,15 +160,27 @@ public class CameraAnimationTypeActivity extends AppCompatActivity implements On
     }
 
     @Override
-    public void onResume() {
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
         super.onResume();
         mapView.onResume();
     }
 
     @Override
-    public void onPause() {
+    protected void onPause() {
         super.onPause();
         mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override

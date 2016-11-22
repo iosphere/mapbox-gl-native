@@ -9,7 +9,9 @@ import android.support.annotation.NonNull;
 import static com.mapbox.mapboxsdk.utils.ColorUtils.*;
 
 /**
- * Fill Layer
+ * A filled polygon with an optional stroked border.
+ *
+ * @see <a href="https://www.mapbox.com/mapbox-gl-style-spec/#layers-fill">The online documentation</a>
  */
 public class FillLayer extends Layer {
 
@@ -34,13 +36,12 @@ public class FillLayer extends Layer {
 
     protected native void initialize(String layerId, String sourceId);
 
-   /**
+    /**
      * Set the source layer.
      *
      * @param sourceLayer the source layer to set
      */
     public void setSourceLayer(String sourceLayer) {
-        checkValidity();
         nativeSetSourceLayer(sourceLayer);
     }
 
@@ -60,7 +61,6 @@ public class FillLayer extends Layer {
      * @param filter the filter to set
      */
     public void setFilter(Filter.Statement filter) {
-        checkValidity();
         this.setFilter(filter.toArray());
     }
 
@@ -70,7 +70,6 @@ public class FillLayer extends Layer {
      * @param filter the filter array to set
      */
     public void setFilter(Object[] filter) {
-        checkValidity();
         nativeSetFilter(filter);
     }
 
@@ -117,7 +116,6 @@ public class FillLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Boolean> getFillAntialias() {
-        checkValidity();
         return (PropertyValue<Boolean>) new PropertyValue(nativeGetFillAntialias());
     }
  
@@ -128,7 +126,6 @@ public class FillLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float> getFillOpacity() {
-        checkValidity();
         return (PropertyValue<Float>) new PropertyValue(nativeGetFillOpacity());
     }
  
@@ -139,18 +136,16 @@ public class FillLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getFillColor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetFillColor());
     }
      /**
-     * The color of the filled part of this layer. This color can be specified as rgba with an alpha component and the color's opacity will not affect the opacity of the 1px stroke, if it is used.
+     * The color of the filled part of this layer. This color can be specified as `rgba` with an alpha component and the color's opacity will not affect the opacity of the 1px stroke, if it is used.
      *
      * @return int representation of a rgba string color
      * @throws RuntimeException thrown if property isn't a value
      */
     @ColorInt
     public int getFillColorAsInt() {
-        checkValidity();
         PropertyValue<String> value = getFillColor();
         if (value.isValue()) {
             return rgbaToColor(value.getValue());
@@ -167,7 +162,6 @@ public class FillLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getFillOutlineColor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetFillOutlineColor());
     }
      /**
@@ -178,7 +172,6 @@ public class FillLayer extends Layer {
      */
     @ColorInt
     public int getFillOutlineColorAsInt() {
-        checkValidity();
         PropertyValue<String> value = getFillOutlineColor();
         if (value.isValue()) {
             return rgbaToColor(value.getValue());
@@ -195,7 +188,6 @@ public class FillLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<Float[]> getFillTranslate() {
-        checkValidity();
         return (PropertyValue<Float[]>) new PropertyValue(nativeGetFillTranslate());
     }
  
@@ -206,7 +198,6 @@ public class FillLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getFillTranslateAnchor() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetFillTranslateAnchor());
     }
  
@@ -217,7 +208,6 @@ public class FillLayer extends Layer {
      */
     @SuppressWarnings("unchecked")
     public PropertyValue<String> getFillPattern() {
-        checkValidity();
         return (PropertyValue<String>) new PropertyValue(nativeGetFillPattern());
     }
  

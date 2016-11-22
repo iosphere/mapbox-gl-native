@@ -2,46 +2,32 @@
 
 #include <mbgl/renderer/bucket.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
-#include <mbgl/geometry/elements_buffer.hpp>
-#include <mbgl/geometry/fill_buffer.hpp>
+#include <mbgl/gl/vertex_buffer.hpp>
+#include <mbgl/gl/index_buffer.hpp>
+#include <mbgl/gl/segment.hpp>
+#include <mbgl/programs/fill_program.hpp>
 
 #include <vector>
-#include <memory>
 
 namespace mbgl {
 
-class OutlinePatternShader;
-class PlainShader;
-class PatternShader;
-class OutlineShader;
-
 class FillBucket : public Bucket {
 public:
-    FillBucket();
-    ~FillBucket() override;
-
-    void upload(gl::ObjectStore&, gl::Config&) override;
+    void upload(gl::Context&) override;
     void render(Painter&, PaintParameters&, const style::Layer&, const RenderTile&) override;
     bool hasData() const override;
-    bool needsClipping() const override;
 
     void addGeometry(const GeometryCollection&);
 
-    void drawElements(PlainShader&, gl::ObjectStore&, bool overdraw);
-    void drawElements(PatternShader&, gl::ObjectStore&, bool overdraw);
-    void drawVertices(OutlineShader&, gl::ObjectStore&, bool overdraw);
-    void drawVertices(OutlinePatternShader&, gl::ObjectStore&, bool overdraw);
+    gl::VertexVector<FillVertex> vertices;
+    gl::IndexVector<gl::Lines> lines;
+    gl::IndexVector<gl::Triangles> triangles;
+    gl::SegmentVector<FillAttributes> lineSegments;
+    gl::SegmentVector<FillAttributes> triangleSegments;
 
-private:
-    FillVertexBuffer vertexBuffer;
-    TriangleElementsBuffer triangleElementsBuffer;
-    LineElementsBuffer lineElementsBuffer;
-
-    typedef ElementGroup<4> TriangleGroup;
-    typedef ElementGroup<4> LineGroup;
-
-    std::vector<std::unique_ptr<TriangleGroup>> triangleGroups;
-    std::vector<std::unique_ptr<LineGroup>> lineGroups;
+    optional<gl::VertexBuffer<FillVertex>> vertexBuffer;
+    optional<gl::IndexBuffer<gl::Lines>> lineIndexBuffer;
+    optional<gl::IndexBuffer<gl::Triangles>> triangleIndexBuffer;
 };
 
 } // namespace mbgl

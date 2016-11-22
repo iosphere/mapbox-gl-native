@@ -3,14 +3,15 @@
 #include <array>
 
 #include <mbgl/platform/platform.hpp>
-#include <mbgl/gl/object_store.hpp>
+#include <mbgl/gl/texture.hpp>
 #include <mbgl/util/chrono.hpp>
+#include <mbgl/util/image.hpp>
 #include <mbgl/util/optional.hpp>
 
 namespace mbgl {
 
 namespace gl {
-class Config;
+class Context;
 } // namespace gl
 
 class FrameHistory {
@@ -19,24 +20,21 @@ public:
     void record(const TimePoint&, float zoom, const Duration&);
 
     bool needsAnimation(const Duration&) const;
-    void bind(gl::ObjectStore&, gl::Config&, uint32_t);
-    void upload(gl::ObjectStore&, gl::Config&, uint32_t);
+    void bind(gl::Context&, uint32_t);
+    void upload(gl::Context&, uint32_t);
 
 private:
-    const int width = 256;
-    const int height = 1;
-
     std::array<TimePoint, 256> changeTimes;
     std::array<uint8_t, 256> changeOpacities;
-    std::array<uint8_t, 256> opacities;
+    const AlphaImage opacities{ { 256, 1 } };
 
     int16_t previousZoomIndex = 0;
-    TimePoint previousTime = TimePoint::min();
-    TimePoint time = TimePoint::min();
+    TimePoint previousTime;
+    TimePoint time;
     bool firstFrame = true;
-    bool changed = true;
+    bool dirty = true;
 
-    mbgl::optional<gl::UniqueTexture> texture;
+    mbgl::optional<gl::Texture> texture;
 };
 
 } // namespace mbgl

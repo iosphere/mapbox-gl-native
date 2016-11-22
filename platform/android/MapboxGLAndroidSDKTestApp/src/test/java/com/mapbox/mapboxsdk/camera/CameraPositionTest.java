@@ -4,10 +4,7 @@ import android.content.res.TypedArray;
 import android.os.Parcelable;
 
 import com.mapbox.mapboxsdk.R;
-import com.mapbox.mapboxsdk.constants.MapboxConstants;
-import com.mapbox.mapboxsdk.constants.MathConstants;
 import com.mapbox.mapboxsdk.geometry.LatLng;
-import com.mapbox.mapboxsdk.utils.MathUtils;
 import com.mapbox.mapboxsdk.utils.MockParcel;
 
 import org.junit.Test;
@@ -49,11 +46,11 @@ public class CameraPositionTest {
         float tilt = 44;
 
         TypedArray typedArray = mock(TypedArray.class);
-        when(typedArray.getFloat(R.styleable.MapView_direction, 0.0f)).thenReturn(bearing);
-        when(typedArray.getFloat(R.styleable.MapView_center_latitude, 0.0f)).thenReturn(latitude);
-        when(typedArray.getFloat(R.styleable.MapView_center_longitude, 0.0f)).thenReturn(longitude);
-        when(typedArray.getFloat(R.styleable.MapView_zoom, 0.0f)).thenReturn(zoom);
-        when(typedArray.getFloat(R.styleable.MapView_tilt, 0.0f)).thenReturn(tilt);
+        when(typedArray.getFloat(R.styleable.mapbox_MapView_mapbox_cameraBearing, 0.0f)).thenReturn(bearing);
+        when(typedArray.getFloat(R.styleable.mapbox_MapView_mapbox_cameraTargetLat, 0.0f)).thenReturn(latitude);
+        when(typedArray.getFloat(R.styleable.mapbox_MapView_mapbox_cameraTargetLng, 0.0f)).thenReturn(longitude);
+        when(typedArray.getFloat(R.styleable.mapbox_MapView_mapbox_cameraZoom, 0.0f)).thenReturn(zoom);
+        when(typedArray.getFloat(R.styleable.mapbox_MapView_mapbox_cameraTilt, 0.0f)).thenReturn(tilt);
         doNothing().when(typedArray).recycle();
 
         CameraPosition cameraPosition = new CameraPosition.Builder(typedArray).build();
@@ -91,40 +88,6 @@ public class CameraPositionTest {
         LatLng latLng = new LatLng(1, 2);
         CameraPosition cameraPosition = new CameraPosition(latLng, 3, 4, 5);
         assertEquals("hashCode should match", -1007681505, cameraPosition.hashCode());
-    }
-
-    @Test
-    public void testRadianBuilder() {
-        LatLng latLng = new LatLng(1, 2);
-        CameraPosition.Builder builder = new CameraPosition.Builder(true);
-        builder.target(latLng);
-        builder.zoom(3);
-        builder.tilt(4);
-        builder.bearing(5);
-        CameraPosition cameraPosition = new CameraPosition(latLng, 3, 4, 5);
-        assertEquals("CameraPosition should match", cameraPosition, builder.build());
-    }
-
-    @Test
-    public void testDegreesRadianBuilder() {
-        LatLng latLng = new LatLng(1, 2);
-        float tilt = 4;
-        float bearing = 5;
-        float bearingRadian = (float) (-bearing * MathConstants.DEG2RAD);
-        float tiltRadian = (float) (MathUtils.clamp(tilt, MapboxConstants.MINIMUM_TILT, MapboxConstants.MAXIMUM_TILT) * MathConstants.DEG2RAD);
-
-        CameraPosition.Builder degreeBuilder = new CameraPosition.Builder(false);
-        degreeBuilder.target(latLng);
-        degreeBuilder.zoom(3);
-        degreeBuilder.tilt(tilt);
-        degreeBuilder.bearing(bearing);
-
-        CameraPosition.Builder radianBuilder = new CameraPosition.Builder(true);
-        radianBuilder.target(latLng);
-        radianBuilder.zoom(3);
-        radianBuilder.tilt(tiltRadian);
-        radianBuilder.bearing(bearingRadian);
-        assertEquals("CameraPosition should match", radianBuilder.build(), degreeBuilder.build());
     }
 
     @Test

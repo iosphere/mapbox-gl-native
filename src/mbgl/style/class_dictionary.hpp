@@ -3,12 +3,12 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <functional>
 
 namespace mbgl {
 namespace style {
 
 enum class ClassID : uint32_t {
-    Fallback = 0, // These values are from the fallback properties
     Default = 1, // These values are from the default style for a layer
     Named = 2 // These values (and all subsequent IDs) are from a named style from the layer
 };
@@ -34,3 +34,19 @@ private:
 
 } // namespace style
 } // namespace mbgl
+
+namespace std {
+
+// Explicitly define std::hash<style::ClassID> because GCC doesn't automatically use std::hash<> of
+// the underlying enum type.
+
+template <>
+struct hash<mbgl::style::ClassID> {
+public:
+    size_t operator()(const mbgl::style::ClassID id) const {
+        using T = std::underlying_type_t<mbgl::style::ClassID>;
+        return std::hash<T>()(static_cast<T>(id));
+    }
+};
+
+} // namespace std

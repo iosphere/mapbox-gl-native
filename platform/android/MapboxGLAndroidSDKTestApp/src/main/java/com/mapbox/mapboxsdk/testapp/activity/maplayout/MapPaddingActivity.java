@@ -21,7 +21,7 @@ import com.mapbox.mapboxsdk.testapp.R;
 
 public class MapPaddingActivity extends AppCompatActivity {
 
-    private MapView mMapView;
+    private MapView mapView;
     private MapboxMap mapboxMap;
 
     @Override
@@ -38,11 +38,11 @@ public class MapPaddingActivity extends AppCompatActivity {
             actionBar.setDisplayShowHomeEnabled(true);
         }
 
-        mMapView = (MapView) findViewById(R.id.mapView);
-        mMapView.setTag(true);
-        mMapView.onCreate(savedInstanceState);
+        mapView = (MapView) findViewById(R.id.mapView);
+        mapView.setTag(true);
+        mapView.onCreate(savedInstanceState);
 
-        mMapView.getMapAsync(new OnMapReadyCallback() {
+        mapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull MapboxMap mapboxMap) {
                 MapPaddingActivity.this.mapboxMap = mapboxMap;
@@ -58,33 +58,45 @@ public class MapPaddingActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        mMapView.onResume();
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
     }
 
     @Override
-    public void onPause() {
+    protected void onResume() {
+        super.onResume();
+        mapView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
         super.onPause();
-        mMapView.onPause();
+        mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        mMapView.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mMapView.onDestroy();
+        mapView.onDestroy();
     }
 
     @Override
     public void onLowMemory() {
         super.onLowMemory();
-        mMapView.onLowMemory();
+        mapView.onLowMemory();
     }
 
     @Override
@@ -100,8 +112,9 @@ public class MapPaddingActivity extends AppCompatActivity {
 
             TrackingSettings trackingSettings = mapboxMap.getTrackingSettings();
             trackingSettings.setDismissTrackingOnGesture(false);
-            trackingSettings.setMyLocationTrackingMode(enable ? MyLocationTracking.TRACKING_FOLLOW : MyLocationTracking.TRACKING_NONE);
-        } catch (SecurityException e) {
+            trackingSettings.setMyLocationTrackingMode(
+                enable ? MyLocationTracking.TRACKING_FOLLOW : MyLocationTracking.TRACKING_NONE);
+        } catch (SecurityException securityException) {
             // permission not granted is handled in FeatureOverviewActivity
             finish();
         }

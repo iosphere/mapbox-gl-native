@@ -32,13 +32,34 @@ namespace android {
     Layer::~Layer() {
     }
 
-    jni::String Layer::getId(jni::JNIEnv& env) {
-        return jni::Make<jni::String>(env, layer.getID());
+    void Layer::addToMap(mbgl::Map& _map, mbgl::optional<std::string> before) {
+        //Check to see if we own the layer first
+        if (!ownedLayer) {
+            throw std::runtime_error("Cannot add layer twice");
+        }
+
+        //Add layer to map
+        _map.addLayer(releaseCoreLayer(), before);
+
+        //Save pointer to the map
+        this->map = &_map;
+    }
+
+    void Layer::setLayer(std::unique_ptr<mbgl::style::Layer> sourceLayer) {
+        this->ownedLayer = std::move(sourceLayer);
     }
 
     std::unique_ptr<mbgl::style::Layer> Layer::releaseCoreLayer() {
         assert(ownedLayer != nullptr);
         return std::move(ownedLayer);
+    }
+
+    jni::String Layer::getId(jni::JNIEnv& env) {
+        return jni::Make<jni::String>(env, layer.getID());
+    }
+
+    style::Layer& Layer::get() {
+        return layer;
     }
 
     void Layer::setLayoutProperty(jni::JNIEnv& env, jni::String jname, jni::Object<> jvalue) {
@@ -60,19 +81,6 @@ namespace android {
         if (error) {
             mbgl::Log::Error(mbgl::Event::JNI, "Error setting property: " + jni::Make<std::string>(env, jname) + " " + error->message);
             return;
-        }
-    }
-
-    void Layer::updateStyle(jni::JNIEnv&, jni::jboolean updateClasses) {
-        //Update the style only if attached
-        if (ownedLayer == nullptr) {
-            Update flags = mbgl::Update::RecalculateStyle;
-            if(updateClasses) {
-                flags = flags | mbgl::Update::Classes;
-            }
-            map->update(flags);
-        } else {
-            mbgl::Log::Debug(mbgl::Event::JNI, "Not updating as layer is not attached to map (yet)");
         }
     }
 
@@ -155,7 +163,6 @@ namespace android {
             METHOD(&Layer::getId, "nativeGetId"),
             METHOD(&Layer::setLayoutProperty, "nativeSetLayoutProperty"),
             METHOD(&Layer::setPaintProperty, "nativeSetPaintProperty"),
-            METHOD(&Layer::updateStyle, "nativeUpdateStyle"),
             METHOD(&Layer::setFilter, "nativeSetFilter"),
             METHOD(&Layer::setSourceLayer, "nativeSetSourceLayer"),
             METHOD(&Layer::getMinZoom, "nativeGetMinZoom"),

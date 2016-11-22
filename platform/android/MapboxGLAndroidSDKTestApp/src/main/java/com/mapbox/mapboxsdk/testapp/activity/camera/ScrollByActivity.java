@@ -26,7 +26,8 @@ public class ScrollByActivity extends AppCompatActivity implements OnMapReadyCal
 
     private MapView mapView;
     private MapboxMap mapboxMap;
-    private SeekBar xBar, yBar;
+    private SeekBar xBar;
+    private SeekBar yBar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,15 +78,27 @@ public class ScrollByActivity extends AppCompatActivity implements OnMapReadyCal
     }
 
     @Override
-    public void onResume() {
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
         super.onResume();
         mapView.onResume();
     }
 
     @Override
-    public void onPause() {
+    protected void onPause() {
         super.onPause();
         mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override
@@ -120,18 +133,18 @@ public class ScrollByActivity extends AppCompatActivity implements OnMapReadyCal
     private static class PixelBarChangeListener implements SeekBar.OnSeekBarChangeListener {
 
         @StringRes
-        private int mPrefixTextResource;
-        private TextView mValueView;
+        private int prefixTextResource;
+        private TextView valueView;
 
         public PixelBarChangeListener(@NonNull TextView textView, @StringRes int textRes) {
-            mValueView = textView;
-            mPrefixTextResource = textRes;
+            valueView = textView;
+            prefixTextResource = textRes;
         }
 
         @Override
         public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
             int value = progress * ScrollByActivity.MULTIPLIER_PER_PIXEL;
-            mValueView.setText(String.format(seekBar.getResources().getString(mPrefixTextResource), value));
+            valueView.setText(String.format(seekBar.getResources().getString(prefixTextResource), value));
         }
 
         @Override

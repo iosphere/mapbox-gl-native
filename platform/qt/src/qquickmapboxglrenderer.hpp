@@ -1,10 +1,11 @@
 #pragma once
 
+#include "qmapbox.hpp"
+#include "qmapboxgl.hpp"
+
 #include <QObject>
 #include <QQuickFramebufferObject>
 #include <QScopedPointer>
-
-#include <QMapboxGL>
 
 class QGeoCoordinate;
 class QOpenGLFramebufferObject;
@@ -25,14 +26,10 @@ public:
 
 signals:
     void centerChanged(const QGeoCoordinate &);
-    void styleChanged();
-
-public slots:
-    void onMapChanged(QMapboxGL::MapChange);
 
 private:
     bool m_initialized = false;
-    bool m_styleLoaded = false;
+    qreal m_pixelRatio = 1;
 
     QScopedPointer<QMapboxGL> m_map;
 };

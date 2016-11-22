@@ -2,11 +2,11 @@
 #include <mbgl/renderer/paint_parameters.hpp>
 #include <mbgl/renderer/circle_bucket.hpp>
 #include <mbgl/renderer/render_tile.hpp>
-
 #include <mbgl/style/layers/circle_layer.hpp>
 #include <mbgl/style/layers/circle_layer_impl.hpp>
-
-#include <mbgl/shader/shaders.hpp>
+#include <mbgl/programs/programs.hpp>
+#include <mbgl/programs/circle_program.hpp>
+#include <mbgl/gl/context.hpp>
 
 namespace mbgl {
 
@@ -16,42 +16,43 @@ void Painter::renderCircle(PaintParameters& parameters,
                            CircleBucket& bucket,
                            const CircleLayer& layer,
                            const RenderTile& tile) {
-    // Abort early.
-    if (pass == RenderPass::Opaque) return;
-
-    config.stencilTest = frame.mapMode == MapMode::Still ? GL_TRUE : GL_FALSE;
-    config.depthFunc.reset();
-    config.depthTest = GL_TRUE;
-    config.depthMask = GL_FALSE;
-    setDepthSublayer(0);
-
-    const CirclePaintProperties& properties = layer.impl->paint;
-    auto& circleShader = parameters.shaders.circle;
-
-    config.program = circleShader.getID();
-
-    circleShader.u_matrix = tile.translatedMatrix(properties.circleTranslate,
-                                                  properties.circleTranslateAnchor,
-                                                  state);
-
-    if (properties.circlePitchScale == CirclePitchScaleType::Map) {
-        circleShader.u_extrude_scale = {{
-            pixelsToGLUnits[0] * state.getAltitude(),
-            pixelsToGLUnits[1] * state.getAltitude()
-        }};
-        circleShader.u_scale_with_map = true;
-    } else {
-        circleShader.u_extrude_scale = pixelsToGLUnits;
-        circleShader.u_scale_with_map = false;
+    if (pass == RenderPass::Opaque) {
+        return;
     }
 
-    circleShader.u_devicepixelratio = frame.pixelRatio;
-    circleShader.u_color = properties.circleColor;
-    circleShader.u_radius = properties.circleRadius;
-    circleShader.u_blur = properties.circleBlur;
-    circleShader.u_opacity = properties.circleOpacity;
+    const CirclePaintProperties::Evaluated& properties = layer.impl->paint.evaluated;
+    const bool scaleWithMap = properties.get<CirclePitchScale>() == CirclePitchScaleType::Map;
 
-    bucket.drawCircles(circleShader, store);
+    parameters.programs.circle.draw(
+        context,
+        gl::Triangles(),
+        depthModeForSublayer(0, gl::DepthMode::ReadOnly),
+        frame.mapMode == MapMode::Still
+            ? stencilModeForClipping(tile.clip)
+            : gl::StencilMode::disabled(),
+        colorModeForRenderPass(),
+        CircleProgram::UniformValues {
+            uniforms::u_matrix::Value{
+                tile.translatedMatrix(properties.get<CircleTranslate>(),
+                                      properties.get<CircleTranslateAnchor>(),
+                                      state)
+            },
+            uniforms::u_opacity::Value{ properties.get<CircleOpacity>() },
+            uniforms::u_color::Value{ properties.get<CircleColor>() },
+            uniforms::u_radius::Value{ properties.get<CircleRadius>() },
+            uniforms::u_blur::Value{ properties.get<CircleBlur>() },
+            uniforms::u_scale_with_map::Value{ scaleWithMap },
+            uniforms::u_extrude_scale::Value{ scaleWithMap
+                ? std::array<float, 2> {{
+                    pixelsToGLUnits[0] * state.getAltitude(),
+                    pixelsToGLUnits[1] * state.getAltitude()
+                  }}
+                : pixelsToGLUnits }
+        },
+        *bucket.vertexBuffer,
+        *bucket.indexBuffer,
+        bucket.segments
+    );
 }
 
 } // namespace mbgl

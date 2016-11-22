@@ -1,3 +1,5 @@
+add_definitions(-DMBGL_USE_GLES2=1)
+
 macro(mbgl_platform_core)
     set_xcode_property(mbgl-core IPHONEOS_DEPLOYMENT_TARGET "8.0")
     set_xcode_property(mbgl-core ENABLE_BITCODE "YES")
@@ -13,6 +15,7 @@ macro(mbgl_platform_core)
         PRIVATE platform/darwin/src/http_file_source.mm
         PRIVATE platform/default/asset_file_source.cpp
         PRIVATE platform/default/default_file_source.cpp
+        PRIVATE platform/default/local_file_source.cpp
         PRIVATE platform/default/online_file_source.cpp
 
         # Offline
@@ -34,9 +37,13 @@ macro(mbgl_platform_core)
         PRIVATE platform/darwin/src/image.mm
 
         # Headless view
-        PRIVATE platform/darwin/src/headless_view_eagl.mm
+        PRIVATE platform/darwin/src/headless_backend_eagl.mm
+        PRIVATE platform/default/headless_backend.cpp
         PRIVATE platform/default/headless_display.cpp
-        PRIVATE platform/default/headless_view.cpp
+        PRIVATE platform/default/offscreen_view.cpp
+
+        # Thread pool
+        PRIVATE platform/default/thread_pool.cpp
     )
 
     target_add_mason_package(mbgl-core PUBLIC geojson)
@@ -47,7 +54,7 @@ macro(mbgl_platform_core)
 
     # TODO: Remove this by converting to ARC
     set_source_files_properties(
-        platform/darwin/src/headless_view_eagl.mm
+        platform/darwin/src/headless_backend_eagl.mm
             PROPERTIES
         COMPILE_FLAGS -fno-objc-arc
     )

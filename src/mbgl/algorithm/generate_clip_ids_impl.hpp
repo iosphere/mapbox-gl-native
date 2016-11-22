@@ -1,7 +1,7 @@
 #pragma once
 
 #include <mbgl/algorithm/generate_clip_ids.hpp>
-#include <mbgl/util/math.hpp>
+#include <mbgl/math/log2.hpp>
 #include <mbgl/platform/log.hpp>
 
 namespace mbgl {
@@ -15,6 +15,10 @@ void ClipIDGenerator::update(Renderables& renderables) {
     for (auto it = renderables.begin(); it != end; it++) {
         auto& tileID = it->first;
         auto& renderable = it->second;
+        if (!renderable.used) {
+            continue;
+        }
+
         renderable.clip = {};
         Leaf leaf{ renderable.clip };
 
@@ -58,6 +62,9 @@ void ClipIDGenerator::update(Renderables& renderables) {
         uint8_t count = 1;
         for (auto& pair : renderables) {
             auto& renderable = pair.second;
+            if (!renderable.used) {
+                continue;
+            }
             renderable.clip.mask |= mask;
 
             // Assign only to clip IDs that have no value yet.

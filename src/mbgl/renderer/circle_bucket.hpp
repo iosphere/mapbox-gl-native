@@ -3,35 +3,29 @@
 #include <mbgl/renderer/bucket.hpp>
 #include <mbgl/map/mode.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
-#include <mbgl/geometry/elements_buffer.hpp>
-#include <mbgl/geometry/circle_buffer.hpp>
+#include <mbgl/gl/vertex_buffer.hpp>
+#include <mbgl/gl/index_buffer.hpp>
+#include <mbgl/gl/segment.hpp>
+#include <mbgl/programs/circle_program.hpp>
 
 namespace mbgl {
 
-class CircleVertexBuffer;
-class CircleShader;
-
 class CircleBucket : public Bucket {
-    using TriangleGroup = ElementGroup<3>;
-
 public:
     CircleBucket(const MapMode);
-    ~CircleBucket() override;
 
-    void upload(gl::ObjectStore&, gl::Config&) override;
+    void upload(gl::Context&) override;
     void render(Painter&, PaintParameters&, const style::Layer&, const RenderTile&) override;
 
     bool hasData() const override;
-    bool needsClipping() const override;
     void addGeometry(const GeometryCollection&);
 
-    void drawCircles(CircleShader&, gl::ObjectStore&);
+    gl::VertexVector<CircleVertex> vertices;
+    gl::IndexVector<gl::Triangles> triangles;
+    gl::SegmentVector<CircleAttributes> segments;
 
-private:
-    CircleVertexBuffer vertexBuffer_;
-    TriangleElementsBuffer elementsBuffer_;
-
-    std::vector<std::unique_ptr<TriangleGroup>> triangleGroups_;
+    optional<gl::VertexBuffer<CircleVertex>> vertexBuffer;
+    optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
 
     const MapMode mode;
 };

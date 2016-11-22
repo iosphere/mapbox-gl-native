@@ -21,20 +21,23 @@ import com.mapbox.services.Constants;
 import com.mapbox.services.commons.ServicesException;
 import com.mapbox.services.commons.geojson.LineString;
 import com.mapbox.services.commons.models.Position;
-import com.mapbox.services.directions.v4.DirectionsCriteria;
-import com.mapbox.services.directions.v4.MapboxDirections;
-import com.mapbox.services.directions.v4.models.DirectionsResponse;
-import com.mapbox.services.directions.v4.models.DirectionsRoute;
-import com.mapbox.services.directions.v4.models.Waypoint;
+import com.mapbox.services.directions.v5.DirectionsCriteria;
+import com.mapbox.services.directions.v5.MapboxDirections;
+import com.mapbox.services.directions.v5.models.DirectionsResponse;
+import com.mapbox.services.directions.v5.models.DirectionsRoute;
+
+import java.util.ArrayList;
+import java.util.List;
+
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
 public class DirectionsActivity extends AppCompatActivity {
 
-    private final static String LOG_TAG = "DirectionsActivity";
+    private static final String LOG_TAG = "DirectionsActivity";
 
-    private MapView mMapView;
+    private MapView mapView;
     private MapboxMap mapboxMap;
 
     @Override
@@ -51,9 +54,9 @@ public class DirectionsActivity extends AppCompatActivity {
             actionBar.setDisplayShowHomeEnabled(true);
         }
 
-        mMapView = (MapView) findViewById(R.id.mapView);
-        mMapView.onCreate(savedInstanceState);
-        mMapView.getMapAsync(new OnMapReadyCallback() {
+        mapView = (MapView) findViewById(R.id.mapView);
+        mapView.onCreate(savedInstanceState);
+        mapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull MapboxMap mapboxMap) {
                 DirectionsActivity.this.mapboxMap = mapboxMap;
@@ -64,10 +67,10 @@ public class DirectionsActivity extends AppCompatActivity {
 
     private void loadRoute() {
         // Dupont Circle (Washington, DC)
-        Waypoint origin = new Waypoint(-77.04341, 38.90962);
+        Position origin = Position.fromCoordinates(-77.04341, 38.90962);
 
         // The White House (Washington, DC)
-        Waypoint destination = new Waypoint(-77.0365, 38.8977);
+        Position destination = Position.fromCoordinates(-77.0365, 38.8977);
 
         // Set map at centroid
         LatLng centroid = new LatLng(
@@ -93,11 +96,12 @@ public class DirectionsActivity extends AppCompatActivity {
         getRoute(origin, destination);
     }
 
-    private void getRoute(Waypoint origin, Waypoint destination) {
+    private void getRoute(Position origin, Position destination) {
         try {
             MapboxDirections md = new MapboxDirections.Builder()
                     .setAccessToken(getString(R.string.mapbox_access_token))
                     .setOrigin(origin)
+                    .setOverview(DirectionsCriteria.OVERVIEW_FULL)
                     .setDestination(destination)
                     .setProfile(DirectionsCriteria.PROFILE_WALKING)
                     .build();
@@ -105,8 +109,8 @@ public class DirectionsActivity extends AppCompatActivity {
             md.enqueueCall(new Callback<DirectionsResponse>() {
 
                 @Override
-                public void onFailure(Call<DirectionsResponse> call, Throwable t) {
-                    Log.e(LOG_TAG, "Error: " + t.getMessage());
+                public void onFailure(Call<DirectionsResponse> call, Throwable throwable) {
+                    Log.e(LOG_TAG, "Error: " + throwable.getMessage());
                 }
 
                 @Override
@@ -123,9 +127,9 @@ public class DirectionsActivity extends AppCompatActivity {
                 }
 
             });
-        } catch (ServicesException e) {
-            Log.e(LOG_TAG, "Error displaying route: " + e.toString());
-            e.printStackTrace();
+        } catch (ServicesException servicesException) {
+            Log.e(LOG_TAG, "Error displaying route: " + servicesException.toString());
+            servicesException.printStackTrace();
         }
     }
 
@@ -136,43 +140,62 @@ public class DirectionsActivity extends AppCompatActivity {
         builder.alpha(0.5f);
         builder.width(5);
         builder.width(5);
-        LineString lineString = route.asLineString(Constants.OSRM_PRECISION_V4);
-        for (Position coordinates : lineString.getCoordinates()) {
-            builder.add(new LatLng(coordinates.getLatitude(), coordinates.getLongitude()));
+
+        LineString lineString = LineString.fromPolyline(route.getGeometry(), Constants.OSRM_PRECISION_V5);
+        List<Position> coordinates = lineString.getCoordinates();
+        List<LatLng> points = new ArrayList<>();
+        for (int i = 0; i < coordinates.size(); i++) {
+            points.add(new LatLng(
+              coordinates.get(i).getLatitude(),
+              coordinates.get(i).getLongitude()));
         }
+
+        builder.addAll(points);
 
         // Draw Points on MapView
         mapboxMap.addPolyline(builder);
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        mMapView.onResume();
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
     }
 
     @Override
-    public void onPause() {
+    protected void onResume() {
+        super.onResume();
+        mapView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
         super.onPause();
-        mMapView.onPause();
+        mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        mMapView.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mMapView.onDestroy();
+        mapView.onDestroy();
     }
 
     @Override
     public void onLowMemory() {
         super.onLowMemory();
-        mMapView.onLowMemory();
+        mapView.onLowMemory();
     }
 
     @Override

@@ -26,16 +26,15 @@ NodeRequest::~NodeRequest() {
 
 Nan::Persistent<v8::Function> NodeRequest::constructor;
 
-NAN_MODULE_INIT(NodeRequest::Init) {
+void NodeRequest::Init() {
     v8::Local<v8::FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(New);
 
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
     tpl->SetClassName(Nan::New("Request").ToLocalChecked());
 
-    constructor.Reset(tpl->GetFunction());
+    Nan::SetPrototypeMethod(tpl, "respond", HandleCallback);
 
-    // TODO: Remove this from the public JavaScript API
-    Nan::Set(target, Nan::New("Request").ToLocalChecked(), tpl->GetFunction());
+    constructor.Reset(tpl->GetFunction());
 }
 
 void NodeRequest::New(const Nan::FunctionCallbackInfo<v8::Value>& info) {
@@ -49,8 +48,9 @@ void NodeRequest::New(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 }
 
 void NodeRequest::HandleCallback(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+    auto request = Nan::ObjectWrap::Unwrap<NodeRequest>(info.Holder());
+
     // Move out of the object so callback() can only be fired once.
-    auto request = Nan::ObjectWrap::Unwrap<NodeRequest>(info.Data().As<v8::Object>());
     auto callback = std::move(request->callback);
     if (!callback) {
         return info.GetReturnValue().SetUndefined();
@@ -122,14 +122,9 @@ void NodeRequest::HandleCallback(const Nan::FunctionCallbackInfo<v8::Value>& inf
 }
 
 void NodeRequest::Execute() {
-    // Enter a new v8::Context to avoid leaking v8::FunctionTemplate
-    // from Nan::New<v8::Function>
-    v8::Local<v8::Context> context = v8::Context::New(v8::Isolate::GetCurrent());
-    v8::Context::Scope scope(context);
+    v8::Local<v8::Value> argv[] = { handle() };
 
-    v8::Local<v8::Value> argv[] = { handle(), Nan::New<v8::Function>(NodeRequest::HandleCallback, handle()) };
-
-    Nan::MakeCallback(Nan::To<v8::Object>(target->handle()->GetInternalField(1)).ToLocalChecked(), "request", 2, argv);
+    Nan::MakeCallback(Nan::To<v8::Object>(target->handle()->GetInternalField(1)).ToLocalChecked(), "request", 1, argv);
 }
 
 NodeRequest::NodeAsyncRequest::NodeAsyncRequest(NodeRequest* request_) : request(request_) {

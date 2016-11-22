@@ -1,6 +1,6 @@
 #pragma once
 
-#include <mbgl/platform/default/headless_view.hpp>
+#include <memory>
 
 namespace mbgl {
 
@@ -9,14 +9,12 @@ public:
     HeadlessDisplay();
     ~HeadlessDisplay();
 
-#if MBGL_USE_CGL
-    CGLPixelFormatObj pixelFormat = nullptr;
-#endif
+    template <typename DisplayAttribute>
+    DisplayAttribute attribute() const;
 
-#if MBGL_USE_GLX
-    Display *xDisplay = nullptr;
-    GLXFBConfig *fbConfigs = nullptr;
-#endif
+private:
+    class Impl;
+    std::unique_ptr<Impl>  impl;
 };
 
 } // namespace mbgl
