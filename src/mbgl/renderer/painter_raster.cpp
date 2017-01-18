@@ -56,7 +56,7 @@ void Painter::renderRaster(PaintParameters& parameters,
 
     parameters.programs.raster.draw(
         context,
-        gl::TriangleStrip(),
+        gl::Triangles(),
         depthModeForSublayer(0, gl::DepthMode::ReadOnly),
         gl::StencilMode::disabled(),
         colorModeForRenderPass(),
@@ -64,8 +64,8 @@ void Painter::renderRaster(PaintParameters& parameters,
             uniforms::u_matrix::Value{ tile.matrix },
             uniforms::u_image0::Value{ 0 },
             uniforms::u_image1::Value{ 1 },
-            uniforms::u_opacity0::Value{ properties.get<RasterOpacity>() },
-            uniforms::u_opacity1::Value{ 0 },
+            uniforms::u_opacity::Value{ properties.get<RasterOpacity>() },
+            uniforms::u_fade_t::Value{ 1 },
             uniforms::u_brightness_low::Value{ properties.get<RasterBrightnessMin>() },
             uniforms::u_brightness_high::Value{ properties.get<RasterBrightnessMax>() },
             uniforms::u_saturation_factor::Value{ saturationFactor(properties.get<RasterSaturation>()) },
@@ -76,6 +76,7 @@ void Painter::renderRaster(PaintParameters& parameters,
             uniforms::u_tl_parent::Value{ std::array<float, 2> {{ 0.0f, 0.0f }} },
         },
         rasterVertexBuffer,
+        tileTriangleIndexBuffer,
         rasterSegments
     );
 }

@@ -4,7 +4,7 @@
 #include <mbgl/gl/vertex_array.hpp>
 #include <mbgl/util/traits.hpp>
 #include <mbgl/util/std.hpp>
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/logging.hpp>
 
 #include <cstring>
 
@@ -105,6 +105,7 @@ UniqueBuffer Context::createIndexBuffer(const void* data, std::size_t size) {
     BufferID id = 0;
     MBGL_CHECK_ERROR(glGenBuffers(1, &id));
     UniqueBuffer result { std::move(id), { this } };
+    vertexArrayObject = 0;
     elementBuffer = result;
     MBGL_CHECK_ERROR(glBufferData(GL_ELEMENT_ARRAY_BUFFER, size, data, GL_STATIC_DRAW));
     return result;
@@ -518,18 +519,11 @@ void Context::draw(const Drawable& drawable) {
             drawable.bindAttributes(segment.vertexOffset);
         }
 
-        if (drawable.indexBuffer) {
-            MBGL_CHECK_ERROR(glDrawElements(
-                static_cast<GLenum>(primitiveType),
-                static_cast<GLsizei>(segment.indexLength),
-                GL_UNSIGNED_SHORT,
-                reinterpret_cast<GLvoid*>(sizeof(uint16_t) * segment.indexOffset)));
-        } else {
-            MBGL_CHECK_ERROR(glDrawArrays(
-                static_cast<GLenum>(primitiveType),
-                static_cast<GLint>(segment.vertexOffset),
-                static_cast<GLsizei>(segment.vertexLength)));
-        }
+        MBGL_CHECK_ERROR(glDrawElements(
+            static_cast<GLenum>(primitiveType),
+            static_cast<GLsizei>(segment.indexLength),
+            GL_UNSIGNED_SHORT,
+            reinterpret_cast<GLvoid*>(sizeof(uint16_t) * segment.indexOffset)));
     }
 }
 

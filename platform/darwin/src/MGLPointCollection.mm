@@ -1,84 +1,100 @@
 #import "MGLPointCollection_Private.h"
 #import "MGLGeometry_Private.h"
+#import "NSArray+MGLAdditions.h"
 
+#import <mbgl/util/geojson.hpp>
 #import <mbgl/util/geometry.hpp>
-#import <mbgl/util/feature.hpp>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @implementation MGLPointCollection
 {
-    size_t _count;
-    MGLCoordinateBounds _bounds;
+    mbgl::optional<mbgl::LatLngBounds> _bounds;
+    std::vector<CLLocationCoordinate2D> _coordinates;
 }
 
-+ (instancetype)pointCollectionWithCoordinates:(CLLocationCoordinate2D *)coords count:(NSUInteger)count
++ (instancetype)pointCollectionWithCoordinates:(const CLLocationCoordinate2D *)coords count:(NSUInteger)count
 {
     return [[self alloc] initWithCoordinates:coords count:count];
 }
 
-- (instancetype)initWithCoordinates:(CLLocationCoordinate2D *)coords count:(NSUInteger)count
+- (instancetype)initWithCoordinates:(const CLLocationCoordinate2D *)coords count:(NSUInteger)count
 {
     self = [super init];
     if (self)
     {
-        _count = count;
-        _coordinates = (CLLocationCoordinate2D *)malloc(_count * sizeof(CLLocationCoordinate2D));
-        
-        mbgl::LatLngBounds bounds = mbgl::LatLngBounds::empty();
-        
-        for (NSUInteger i = 0; i < count; i++)
-        {
-            _coordinates[i] = coords[i];
-            bounds.extend(mbgl::LatLng(coords[i].latitude, coords[i].longitude));
-        }
-        
-        _bounds = MGLCoordinateBoundsFromLatLngBounds(bounds);
+        _coordinates = { coords, coords + count };
     }
     return self;
 }
 
+- (nullable instancetype)initWithCoder:(NSCoder *)decoder {
+    if (self = [super initWithCoder:decoder]) {
+        NSArray *coordinates = [decoder decodeObjectOfClass:[NSArray class] forKey:@"coordinates"];
+        _coordinates = [coordinates mgl_coordinates];
+    }
+    return self;
+}
+
+- (void)encodeWithCoder:(NSCoder *)coder {
+    [super encodeWithCoder:coder];
+    [coder encodeObject:[NSArray mgl_coordinatesFromCoordinates:_coordinates] forKey:@"coordinates"];
+}
+
+- (BOOL)isEqual:(id)other {
+    if (self == other) return YES;
+    if (![other isKindOfClass:[MGLPointCollection class]]) return NO;
+    
+    MGLPointCollection *otherCollection = (MGLPointCollection *)other;
+    return ([super isEqual:other]
+            && ((![self geoJSONDictionary] && ![otherCollection geoJSONDictionary]) || [[self geoJSONDictionary] isEqualToDictionary:[otherCollection geoJSONDictionary]]));
+}
+
+- (MGLCoordinateBounds)overlayBounds {
+    if (!_bounds) {
+        mbgl::LatLngBounds bounds = mbgl::LatLngBounds::empty();
+        for (auto coordinate : _coordinates) {
+            bounds.extend(mbgl::LatLng(coordinate.latitude, coordinate.longitude));
+        }
+        _bounds = bounds;
+    }
+    return MGLCoordinateBoundsFromLatLngBounds(*_bounds);
+}
+
 - (NSUInteger)pointCount
 {
-    return _count;
+    return _coordinates.size();
+}
+
+- (CLLocationCoordinate2D *)coordinates
+{
+    return _coordinates.data();
 }
 
 - (CLLocationCoordinate2D)coordinate
 {
-    assert(_count > 0);
-    
-    return CLLocationCoordinate2DMake(_coordinates[0].latitude, _coordinates[0].longitude);
+    NSAssert([self pointCount] > 0, @"A multipoint must have coordinates");
+    return _coordinates.at(0);
 }
 
 - (void)getCoordinates:(CLLocationCoordinate2D *)coords range:(NSRange)range
 {
-    if (range.location + range.length > _count)
+    if (range.location + range.length > [self pointCount])
     {
         [NSException raise:NSRangeException
-                    format:@"Invalid coordinate range %@ extends beyond current coordinate count of %zu",
-         NSStringFromRange(range), _count];
+                    format:@"Invalid coordinate range %@ extends beyond current coordinate count of %ld",
+         NSStringFromRange(range), (unsigned long)[self pointCount]];
     }
-    
-    NSUInteger index = 0;
-    
-    for (NSUInteger i = range.location; i < range.location + range.length; i++)
-    {
-        coords[index] = _coordinates[i];
-        index++;
-    }
-}
 
-- (MGLCoordinateBounds)overlayBounds
-{
-    return _bounds;
+    std::copy(_coordinates.begin() + range.location, _coordinates.begin() + NSMaxRange(range), coords);
 }
 
 - (BOOL)intersectsOverlayBounds:(MGLCoordinateBounds)overlayBounds
 {
-    return MGLLatLngBoundsFromCoordinateBounds(_bounds).intersects(MGLLatLngBoundsFromCoordinateBounds(overlayBounds));
+    return MGLCoordinateBoundsIntersectsCoordinateBounds(self.overlayBounds, overlayBounds);
 }
 
-- (mbgl::Feature)featureObject
+- (mbgl::Geometry<double>)geometryObject
 {
     mbgl::MultiPoint<double> multiPoint;
     multiPoint.reserve(self.pointCount);
@@ -86,7 +102,7 @@ NS_ASSUME_NONNULL_BEGIN
     {
         multiPoint.push_back(mbgl::Point<double>(self.coordinates[i].longitude, self.coordinates[i].latitude));
     }
-    return mbgl::Feature {multiPoint};
+    return multiPoint;
 }
 
 - (NSDictionary *)geoJSONDictionary
@@ -104,7 +120,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)description
 {
     return [NSString stringWithFormat:@"<%@: %p; count = %lu>",
-            NSStringFromClass([self class]), (void *)self, (unsigned long)_count];
+            NSStringFromClass([self class]), (void *)self, (unsigned long)[self pointCount]];
 }
 
 @end

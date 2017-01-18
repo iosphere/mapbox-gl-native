@@ -2,6 +2,7 @@
 
 #include <mbgl/style/class_dictionary.hpp>
 #include <mbgl/style/property_evaluator.hpp>
+#include <mbgl/style/cross_faded_property_evaluator.hpp>
 #include <mbgl/style/transition_options.hpp>
 #include <mbgl/style/cascade_parameters.hpp>
 #include <mbgl/style/property_evaluation_parameters.hpp>
@@ -44,6 +45,9 @@ public:
             // Transition from prior value is now complete.
             prior = {};
             return finalValue;
+        } else if (parameters.now < begin) {
+            // Transition hasn't started yet.
+            return prior->get().evaluate(parameters, defaultValue);
         } else {
             // Interpolate between recursively-calculated prior value and final.
             float t = std::chrono::duration<float>(parameters.now - begin) / (end - begin);

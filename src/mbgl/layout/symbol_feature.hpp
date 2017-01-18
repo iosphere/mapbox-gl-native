@@ -1,6 +1,5 @@
 #pragma once
 
-#include <mbgl/text/bidi.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
 #include <mbgl/util/optional.hpp>
 
@@ -10,9 +9,9 @@ namespace mbgl {
 
 class SymbolFeature {
 public:
+    FeatureType type;
     GeometryCollection geometry;
     optional<std::u16string> text;
-    optional<WritingDirection> writingDirection;
     optional<std::string> icon;
     std::size_t index;
 };

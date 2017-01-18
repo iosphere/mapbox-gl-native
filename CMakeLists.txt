@@ -10,6 +10,20 @@ if(NOT EXISTS ".mason/mason.cmake")
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endif()
 
+if(NOT EXISTS "mapbox-gl-js/package.json")
+   execute_process(
+        COMMAND git submodule update --init mapbox-gl-js
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+   # Symlink mapbox-gl-js/node_modules so that the modules that are
+   # about to be installed get cached between CI runs.
+   execute_process(
+        COMMAND ln -s ../node_modules node_modules
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/mapbox-gl-js)
+   execute_process(
+        COMMAND npm install
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/mapbox-gl-js)
+endif()
+
 include(.mason/mason.cmake)
 
 option(WITH_CXX11ABI "Use cxx11abi mason packages" OFF)
@@ -40,19 +54,21 @@ if(IS_CI_BUILD)
     add_compile_options(-DCI_BUILD=1)
 endif()
 
-mason_use(geometry VERSION 0.8.0 HEADER_ONLY)
-mason_use(variant VERSION 1.1.0 HEADER_ONLY)
+mason_use(geometry VERSION 0.9.0 HEADER_ONLY)
+mason_use(variant VERSION 1.1.4 HEADER_ONLY)
 mason_use(unique_resource VERSION dev HEADER_ONLY)
 mason_use(rapidjson VERSION 1.1.0 HEADER_ONLY)
-mason_use(boost VERSION 1.60.0 HEADER_ONLY)
+mason_use(boost VERSION 1.62.0 HEADER_ONLY)
 mason_use(geojsonvt VERSION 6.1.3 HEADER_ONLY)
 mason_use(supercluster VERSION 0.2.0 HEADER_ONLY)
 mason_use(kdbush VERSION 0.1.1 HEADER_ONLY)
 mason_use(earcut VERSION 0.12.1 HEADER_ONLY)
 mason_use(protozero VERSION 1.4.2 HEADER_ONLY)
 mason_use(pixelmatch VERSION 0.10.0 HEADER_ONLY)
-mason_use(geojson VERSION 0.3.2 HEADER_ONLY)
-mason_use(icu VERSION 58.1)
+mason_use(geojson VERSION 0.4.0 HEADER_ONLY)
+mason_use(polylabel VERSION 1.0.2 HEADER_ONLY)
+
+add_definitions(-DRAPIDJSON_HAS_STDSTRING=1)
 
 if(WITH_COVERAGE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")

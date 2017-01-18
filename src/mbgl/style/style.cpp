@@ -8,6 +8,7 @@
 #include <mbgl/style/layers/background_layer.hpp>
 #include <mbgl/style/layers/background_layer_impl.hpp>
 #include <mbgl/style/layers/fill_layer.hpp>
+#include <mbgl/style/layers/fill_extrusion_layer.hpp>
 #include <mbgl/style/layers/line_layer.hpp>
 #include <mbgl/style/layers/circle_layer.hpp>
 #include <mbgl/style/layers/raster_layer.hpp>
@@ -25,8 +26,10 @@
 #include <mbgl/renderer/render_item.hpp>
 #include <mbgl/renderer/render_tile.hpp>
 #include <mbgl/util/constants.hpp>
+#include <mbgl/util/geometry.hpp>
 #include <mbgl/util/string.hpp>
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/logging.hpp>
+#include <mbgl/util/math.hpp>
 #include <mbgl/math/minmax.hpp>
 
 #include <algorithm>
@@ -136,6 +139,16 @@ void Style::setJSON(const std::string& json) {
 }
 
 void Style::addSource(std::unique_ptr<Source> source) {
+    //Guard against duplicate source ids
+    auto it = std::find_if(sources.begin(), sources.end(), [&](const auto& existing) {
+        return existing->getID() == source->getID();
+    });
+
+    if (it != sources.end()) {
+        std::string msg = "Source " + source->getID() + " already exists";
+        throw std::runtime_error(msg.c_str());
+    }
+
     source->baseImpl->setObserver(this);
     sources.emplace_back(std::move(source));
 }
@@ -165,6 +178,15 @@ std::vector<const Layer*> Style::getLayers() const {
     return result;
 }
 
+std::vector<Layer*> Style::getLayers() {
+    std::vector<Layer*> result;
+    result.reserve(layers.size());
+    for (auto& layer : layers) {
+        result.push_back(layer.get());
+    }
+    return result;
+}
+
 std::vector<std::unique_ptr<Layer>>::const_iterator Style::findLayer(const std::string& id) const {
     return std::find_if(layers.begin(), layers.end(), [&](const auto& layer) {
         return layer->baseImpl->id == id;
@@ -178,6 +200,15 @@ Layer* Style::getLayer(const std::string& id) const {
 
 Layer* Style::addLayer(std::unique_ptr<Layer> layer, optional<std::string> before) {
     // TODO: verify source
+
+    // Guard against duplicate layer ids
+    auto it = std::find_if(layers.begin(), layers.end(), [&](const auto& existing) {
+        return existing->getID() == layer->getID();
+    });
+
+    if (it != layers.end()) {
+        throw std::runtime_error(std::string{"Layer "} + layer->getID() + " already exists");
+    }
 
     if (SymbolLayer* symbolLayer = layer->as<SymbolLayer>()) {
         if (!symbolLayer->impl->spriteAtlas) {
@@ -323,6 +354,24 @@ void Style::recalculate(float z, const TimePoint& timePoint, MapMode mode) {
     }
 }
 
+std::vector<const Source*> Style::getSources() const {
+    std::vector<const Source*> result;
+    result.reserve(sources.size());
+    for (const auto& source : sources) {
+        result.push_back(source.get());
+    }
+    return result;
+}
+
+std::vector<Source*> Style::getSources() {
+    std::vector<Source*> result;
+    result.reserve(sources.size());
+    for (auto& source : sources) {
+        result.push_back(source.get());
+    }
+    return result;
+}
+
 Source* Style::getSource(const std::string& id) const {
     const auto it = std::find_if(sources.begin(), sources.end(), [&](const auto& source) {
         return source->getID() == id;
@@ -361,9 +410,6 @@ RenderData Style::getRenderData(MapDebugOptions debugOptions, float angle) const
             result.sources.insert(source.get());
         }
     }
-
-    const bool isLeft = std::abs(angle) > M_PI_2;
-    const bool isBottom = angle < 0;
 
     for (const auto& layer : layers) {
         if (!layer->baseImpl->needsRendering(zoomHistory.lastZoom)) {
@@ -409,13 +455,14 @@ RenderData Style::getRenderData(MapDebugOptions debugOptions, float angle) const
                 [](auto& pair) { return std::ref(pair.second); });
         if (symbolLayer) {
             std::sort(sortedTiles.begin(), sortedTiles.end(),
-                      [isLeft, isBottom](const RenderTile& a, const RenderTile& b) {
-                bool sortX = a.id.canonical.x > b.id.canonical.x;
-                bool sortW = a.id.wrap > b.id.wrap;
-                bool sortY = a.id.canonical.y > b.id.canonical.y;
-                return
-                    a.id.canonical.y != b.id.canonical.y ? (isLeft ? sortY : !sortY) :
-                    a.id.wrap != b.id.wrap ? (isBottom ? sortW : !sortW) : (isBottom ? sortX : !sortX);
+                      [angle](const RenderTile& a, const RenderTile& b) {
+                Point<float> pa(a.id.canonical.x, a.id.canonical.y);
+                Point<float> pb(b.id.canonical.x, b.id.canonical.y);
+
+                auto par = util::rotate(pa, angle);
+                auto pbr = util::rotate(pb, angle);
+
+                return std::tie(par.y, par.x) < std::tie(pbr.y, pbr.x);
             });
         }
 
