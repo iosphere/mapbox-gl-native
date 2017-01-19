@@ -125,7 +125,7 @@ Resource Resource::tile(const std::string& urlTemplate,
                 prefix[1] = "0123456789abcdef"[y % 16];
                 return prefix;
             } else if (token == "ratio") {
-                return std::string(pixelRatio > 1.0 ? "@2x" : "");
+                return getResourceResolutionString(pixelRatio);
             } else {
                 return std::string();
             }
